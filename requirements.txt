@@ -1,4 +1,4 @@
-numpy
 cython
-madmom
+numpy
 soundfile
+madmom
