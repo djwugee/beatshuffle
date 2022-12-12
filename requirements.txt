@@ -1,4 +1,4 @@
 cython
 numpy
 soundfile
-madmom
+git+https://github.com/CPJKU/madmom
