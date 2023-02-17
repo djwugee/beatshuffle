@@ -1,4 +1,12 @@
 cython
+mido
 numpy
+scipy
+pytest
+pyaudio
+pyfftw
 soundfile
+ffmpeg-python
+librosa
+pedalboard
 git+https://github.com/CPJKU/madmom
