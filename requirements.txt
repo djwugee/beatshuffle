@@ -1,9 +1,9 @@
+python=3.10
 cython
 mido
 numpy
 scipy
 pytest
-pyaudio
 pyfftw
 soundfile
 ffmpeg-python
