@@ -1,8 +1,8 @@
 ---
 title: BeatManipulator
-emoji: 👀
-colorFrom: gray
-colorTo: indigo
+emoji: 🥁
+colorFrom: blue
+colorTo: blue
 sdk: gradio
 sdk_version: 3.11.0
 app_file: app.py
