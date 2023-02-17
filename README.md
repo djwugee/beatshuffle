@@ -1,7 +1,7 @@
 ---
 title: BeatManipulator
 emoji: 🥁
-colorFrom: yellow
+colorFrom: blue
 colorTo: blue
 sdk: gradio
 sdk_version: 3.11.0
