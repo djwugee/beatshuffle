@@ -15,11 +15,11 @@ scalebox = Textbox(value=1, label="Beatmap scale, beatmap's beats per minute wil
 shiftbox = Textbox(value=0, label="Beatmap shift, in beats (applies before scaling):", placeholder=0, lines=1)
 cachebox = Checkbox(value=True, label="""Enable caching beatmaps. If True, a text file with the beatmap will be saved to the server (your PC if you are running locally), so that beatswapping for the second time doesn't have to generate the beatmap again. 
 
-Text file will be named after your file, and will only contain a list of numbers of positions of each beat. Note: I have no idea if this actually works on Hugging Face.""")
+Text file will be named after your file, and will only contain a list of numbers with positions of each beat.""")
 
 gr.Interface (fn=BeatSwap,inputs=[audiofile,patternbox,scalebox,shiftbox, cachebox],outputs=Audio(type='numpy'),theme="default",
 title = "Stunlocked's Beat Manipulator"
-,description = "Remix music via AI-powered beat detection and advanced beat swapping. https://github.com/stunlocked1/BeatManipulator/blob/main/presets.json"
+,description = "Remix music via AI-powered beat detection and advanced beat swapping. https://github.com/stunlocked1/BeatManipulator"
 ,article="""# <h1><p style='text-align: center'><a href='https://github.com/stunlocked1/BeatManipulator' target='_blank'>Github</a></p></h1>
 
 # Basic usage
