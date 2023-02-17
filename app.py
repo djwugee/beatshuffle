@@ -19,7 +19,7 @@ Text file will be named after your file, and will only contain a list of numbers
 
 gr.Interface (fn=BeatSwap,inputs=[audiofile,patternbox,scalebox,shiftbox, cachebox],outputs=Audio(type='numpy'),theme="default",
 title = "Stunlocked's Beat Manipulator"
-,description = "Remix music using AI-powered beat detection and advanced beat swapping. https://github.com/stunlocked1/BeatManipulator"
+,description = "Remix music using AI-powered beat detection and advanced beat swapping. https://github.com/stunlocked1/BeatManipulator. Collab version - https://colab.research.google.com/drive/1gEsZCCh2zMKqLmaGH5BPPLrImhEGVhv3?usp=sharing"
 ,article="""# <h1><p style='text-align: center'><a href='https://github.com/stunlocked1/BeatManipulator' target='_blank'>Github</a></p></h1>
 
 # Basic usage
