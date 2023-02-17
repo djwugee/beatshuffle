@@ -10,7 +10,7 @@ def BeatSwap(audiofile, pattern: str, scale:float, shift:float, caching:bool):
     return (song.samplerate, np.asarray(song.audio).T)
 
 audiofile=Audio(source='upload', type='filepath')
-patternbox = Textbox(label="Pattern:", placeholder="1, 3, 2r, 4d8", lines=1)
+patternbox = Textbox(label="Pattern:", placeholder="1, 3, 2, 4!", value="1,  1:1.5,  3,  3:3.5,  5,  5:5.5,  3,  3:3.5,  7,  8", lines=1)
 scalebox = Textbox(value=1, label="Beatmap scale, beatmap's beats per minute will be multiplied by this:", placeholder=1, lines=1)
 shiftbox = Textbox(value=0, label="Beatmap shift, in beats (applies before scaling):", placeholder=0, lines=1)
 cachebox = Checkbox(value=True, label="""Enable caching beatmaps. If True, a text file with the beatmap will be saved to the server (your PC if you are running locally), so that beatswapping for the second time doesn't have to generate the beatmap again. 
@@ -19,14 +19,14 @@ Text file will be named after your file, and will only contain a list of numbers
 
 gr.Interface (fn=BeatSwap,inputs=[audiofile,patternbox,scalebox,shiftbox, cachebox],outputs=Audio(type='numpy'),theme="default",
 title = "Stunlocked's Beat Manipulator"
-,description = "Remix music via AI-powered beat detection and advanced beat swapping. https://github.com/stunlocked1/BeatManipulator"
+,description = "Remix music using AI-powered beat detection and advanced beat swapping. https://github.com/stunlocked1/BeatManipulator"
 ,article="""# <h1><p style='text-align: center'><a href='https://github.com/stunlocked1/BeatManipulator' target='_blank'>Github</a></p></h1>
 
 # Basic usage
 
 Upload your audio, enter the beat swapping pattern, change scale and shift if needed, and run the app.
 
-You can test where each beat is by writing `test` into the `pattern` field, which will put cowbells on each beat. Beatmap can sometimes be shifted, for example 0.5 beats forward, so this use scale and shift to adjust it.
+You can test where each beat is by writing `test` into the `pattern` field, which will put cowbells on each beat. Beatmap can sometimes be shifted, for example 0.5 beats forward, so use scale and shift to adjust it.
 
 Feel free to use complex patterns and very low scales - most of the computation time is in detecting beats, not swapping them.
 
@@ -34,7 +34,7 @@ Feel free to use complex patterns and very low scales - most of the computation 
 
 Patterns are sequences of numbers or ranges, separated by `,`. Numbers and ranges can be followed by letters that apply effects to them. Spaces can be freely used for formatting as they will be ignored. Any other character that isnt used in the syntax can also be used for formatting but only between beats, not inside them.
 - `1, 3, 2, 4` - every 4 beats, swap 2nd and 3rd beat. This pattern loops every 4 beats, because 4 is the biggest number in it.
-- `!` after a number sets length of the pattern (beat isnt played). `1, 3, 2, 4, 8!` - every 8 beats, swap 2nd and 3rd beat, and 5-8 beats will be skipped.
+- `!` after a number sets length of the pattern (beat isnt played). `1, 3, 4!` - every 4 beats, play first and third beats, i.e. skip every second beat (equivalent to `1, 2!`)
 - `1, 3, 4` - skip 2nd beat
 - `1, 2, 2, 4` - repeat 2nd beat
 - `1, 1:1.5, 4` - play a range of beats. `0:0.5` means first half of 1st beat. Keep that in mind, to play first half of 5th beat, you do `4:4.5`, not `5:5.5`. `1` is equivalent to `0:1`. `1.5` is equivalent to `0.5:1.5`. `1,2,3,4` is `0:4`.
@@ -56,5 +56,7 @@ there are certain commands you can write in pattern instead of the actual patter
 - `test` - test beat detection by putting cowbells on each beat. The highest pitched cowbell should be on the first beat; next cowbell should be on the snare. If it is not, use scale and shift.
 
 There are also some interesting patterns there: https://github.com/stunlocked1/BeatManipulator/blob/main/presets.json. Those are meant to be used with properly adjusted shift and scale, where 1st beat is 1st kick, 2nd beat is the snare after it.
+
+Check my soundcloud https://soundcloud.com/stunlocked
 """
  ).launch(share=False)
