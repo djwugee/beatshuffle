@@ -26,7 +26,7 @@ def BeatSwap(audiofile, pattern: str, scale:float, shift:float, caching:bool, va
         y=min(len(image), len(image[0]), 2048)
         y=max(y, 2048)
         image = np.clip(cv2.resize(image, (y,y), interpolation=cv2.INTER_NEAREST).T/255, -1, 1)
-        print(image)
+        #print(image)
     except Exception as e: 
         print(e)
         image = [[0,0,0],[0,0,0],[0,0,0]]
@@ -37,7 +37,7 @@ def BeatSwap(audiofile, pattern: str, scale:float, shift:float, caching:bool, va
     return ((song.samplerate, song.audio), image)
 
 audiofile=Audio(source='upload', type='filepath')
-patternbox = Textbox(label="Pattern, comma separated:", placeholder="1, 3, 2, 4!", value="1, 2r, 4, 5,    3, 6r, 8, 7,    9, 11, 12, 13,   15, 13s2, 14s2, 14d9, 16s4, 16s4, 16s2", lines=1)
+patternbox = Textbox(label="Pattern, comma separated:", placeholder="1, 3, 2, 4!", value="1, 2r, 4, 5,    3, 6r, 8, 7,    9, 11, 12, 13r,   15s0.5, 14d9, 16s4, 16s4, 16s2", lines=1)
 scalebox = Textbox(value=0.5, label="Beatmap scale, beatmap's beats per minute will be multiplied by this:", placeholder=1, lines=1)
 shiftbox = Textbox(value=0, label="Beatmap shift, in beats (applies before scaling):", placeholder=0, lines=1)
 cachebox = Checkbox(value=True, label="""Enable caching beatmaps. If enabled, a text file with the beatmap will be saved to the server (your PC if you are running locally), so that beatswapping for the second time doesn't have to generate the beatmap again. 
