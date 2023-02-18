@@ -7,19 +7,27 @@ def _safer_eval(string:str) -> float:
         string = eval(''.join([i for i in string if i.isdecimal() or i in '.+-*/']))
     return string
 
-def BeatSwap(audiofile, pattern: str, scale:float, shift:float, caching:bool, variableBPM:bool):
+def BeatSwap(audiofile, pattern: str = 'test', scale:float = 1, shift:float = 0, caching:bool = True, variableBPM:bool = False):
+    print()
     print(f'___ PATH = {audiofile} ___')
+    if scale == '' or scale is None: scale = 1
+    if shift == '' or shift is None: shift = 0
+    if pattern == '' or pattern is None: pattern = 'test'
     scale=_safer_eval(scale)
     shift=_safer_eval(shift)
     if audiofile is not None:
         try:
             song=bm.song(path=audiofile, filename=audiofile.split('.')[-2][:-8]+'.'+audiofile.split('.')[-1], caching=caching)
         except Exception as e:
-            print(e)
+            print(f'Failed to load audio, retrying: {e}')
             song=bm.song(path=audiofile, caching=caching)
-    else: print(f'Audiofile is {audiofile}')
+    else: 
+        print(f'Audiofile is {audiofile}')
+        return
     lib = 'madmom.BeatDetectionProcessor' if variableBPM is False else 'madmom.BeatTrackingProcessor'
     song.beatmap.generate(lib=lib, caching=caching)
+    song.beatmap.shift(shift)
+    song.beatmap.scale(scale)
     try:
         song.beat_image.generate()
         image = song.beat_image.combined
@@ -28,17 +36,17 @@ def BeatSwap(audiofile, pattern: str, scale:float, shift:float, caching:bool, va
         image = np.clip(cv2.resize(image, (y,y), interpolation=cv2.INTER_NEAREST).T/255, -1, 1)
         #print(image)
     except Exception as e: 
-        print(e)
-        image = [[0,0,0],[0,0,0],[0,0,0]]
-    song.quick_beatswap(output=None, pattern=pattern, scale=scale, shift=shift, lib=lib)
-    song.audio = (np.clip(np.asarray(song.audio), -1, 1) * 32767).astype(np.int16).T
+        print(f'Image generation failed: {e}')
+        image = np.asarray([[0.5,-0.5],[-0.5,0.5]])
+    song.quick_beatswap(output=None, pattern=pattern, scale=1, shift=0, lib=lib)
+    song.audio = (np.clip(np.asarray(song.audio), -1, 1) * 32766).astype(np.int16).T
     #song.write_audio(output=bm.outputfilename('',song.filename, suffix=' (beatswap)'))
     print('___ SUCCESS ___')
     return ((song.samplerate, song.audio), image)
 
 audiofile=Audio(source='upload', type='filepath')
-patternbox = Textbox(label="Pattern, comma separated:", placeholder="1, 3, 2, 4!", value="1, 2r, 4, 5,    3, 6r, 8, 7,    9, 11, 12, 13r,   15s0.5, 14d9, 16s4, 16s4, 16s2", lines=1)
-scalebox = Textbox(value=0.5, label="Beatmap scale, beatmap's beats per minute will be multiplied by this:", placeholder=1, lines=1)
+patternbox = Textbox(label="Pattern, comma separated:", placeholder="1, 3, 2, 4!", value="1, 2!", lines=1)
+scalebox = Textbox(value=1, label="Beatmap scale, beatmap's beats per minute will be multiplied by this:", placeholder=1, lines=1)
 shiftbox = Textbox(value=0, label="Beatmap shift, in beats (applies before scaling):", placeholder=0, lines=1)
 cachebox = Checkbox(value=True, label="""Enable caching beatmaps. If enabled, a text file with the beatmap will be saved to the server (your PC if you are running locally), so that beatswapping for the second time doesn't have to generate the beatmap again. 
 

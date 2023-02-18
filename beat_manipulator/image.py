@@ -134,23 +134,26 @@ class beat_image(image):
         # maximum is needed to make the array homogeneous
         maximum=self.beatmap[0]
         values=[]
+        #print(self.beatmap)
         values.append(self.beatmap[0])
         for i in range(len(self.beatmap)-1):
             self.image[0].append(self.audio[0][self.beatmap[i]:self.beatmap[i+1]])
             self.image[1].append(self.audio[1][self.beatmap[i]:self.beatmap[i+1]])
             maximum = max(self.beatmap[i+1]-self.beatmap[i], maximum)
             values.append(self.beatmap[i+1]-self.beatmap[i])
-        if 'max' in mode: norm=maximum
-        elif 'med' in mode: norm=numpy.median(values)
-        elif 'av' in mode: norm=numpy.average(values)
+        if 'max' in mode: norm=int(maximum)
+        elif 'med' in mode: norm=int(numpy.median(values))
+        elif 'av' in mode: norm=int(numpy.average(values))
         for i in range(len(self.image[0])):
-            beat_diff=int(norm-len(self.image[0][i]))
+            beat_diff=norm-len(self.image[0][i])
             if beat_diff>0:
                 self.image[0][i].extend([numpy.nan]*beat_diff)
                 self.image[1][i].extend([numpy.nan]*beat_diff)
+                #print(0, len(self.image[0][i]), len(self.image[1][i]))
             elif beat_diff<0:
                 self.image[0][i]=self.image[0][i][:beat_diff]
                 self.image[1][i]=self.image[1][i][:beat_diff]
+                #print(1, len(self.image[0][i]), len(self.image[1][i]))
         self.image=numpy.asarray(self.image)*255
         self.mask = self.image == numpy.nan
         self.image=numpy.nan_to_num(self.image)

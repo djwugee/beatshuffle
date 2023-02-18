@@ -768,10 +768,12 @@ def beatswap(pattern: str, audio = None, scale: float = 1, shift: float = 0, out
     audio.quick_beatswap(pattern = pattern, scale=scale, shift=shift, output=output)
     return audio.path
 
-def generate_beat_image(audio = None, output='', samplerate = None, bmap = None, log = True, ext='png', maximum=4096):
+def generate_beat_image(audio = None, scale: float = 1, shift: float = 0, output='', samplerate = None, bmap = None, log = True, ext='png', maximum=4096):
     audio = _tosong(audio=audio, bmap=bmap, samplerate=samplerate, log=log)
     output = _outputfilename(output=output, filename=audio.path, ext=ext, suffix = '')
     audio.beatmap.generate()
+    audio.beatmap.scale(scale)
+    audio.beatmap.shift(shift)
     audio.beat_image.generate()
     audio.beat_image.write(output=output, maximum = maximum)
     return output
