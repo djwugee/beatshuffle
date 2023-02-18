@@ -232,14 +232,18 @@ class song:
     #     self.hitmap.generate(audio=self.audio, samplerate=self.samplerate, lib=lib, caching=self.caching, filename=self.filename)
 
     def generate_osu_beatmap(self, difficulties = [0.2, 0.1, 0.08, 0.06, 0.04, 0.02, 0.01, 0.005]):
-        self.hitmap.osu(self, difficulties = difficulties)
+        self.hitmap.osu(difficulties = difficulties)
         import shutil, os
         if self.path is not None: 
             shutil.copyfile(self.path, 'BeatManipulator_TEMP/'+self.path.split('/')[-1])
         else: self.write('BeatManipulator_TEMP/audio.mp3')
         shutil.make_archive('BeatManipulator_TEMP', 'zip', 'BeatManipulator_TEMP')
-        os.rename('BeatManipulator_TEMP.zip', _outputfilename('', self.path, '_'+self.hm, 'osz'))
+        outputname = _outputfilename('', self.path, '_'+self.hitmap.hitlib, 'osz')
+        if not os.path.exists(outputname):
+            os.rename('BeatManipulator_TEMP.zip', outputname)
+        else: print(f'{outputname} already exists!')
         shutil.rmtree('BeatManipulator_TEMP')
+        self._printlog(f'Wrote {outputname}')
 
     def autotrim(self):
         self._printlog(f'autotrimming; ')
@@ -261,7 +265,13 @@ class song:
         # get pattern size
         size=0    
         #cut processing??? not worth it, it is really fast anyways
-        pattern=pattern.replace(' ', '').split(sep)
+        if sep != ' ':
+            if sep not in pattern: pattern=pattern.replace(' ', sep) # separator not in patterm, e.g. forgot commas
+            while f'{sep}{sep}' in pattern: pattern = pattern.replace(f'{sep}{sep}', sep) # double separator
+            pattern=pattern.replace(' ', '').split(sep)
+        else: 
+            while '  ' in pattern: pattern = pattern.relace('  ', ' ')
+            pattern=pattern.split(sep)
         self._printlog(f"beatswapping with {' '.join(pattern)}; ")
         for j in pattern:
             s=''
@@ -738,7 +748,7 @@ def delete_beatmap(filename, lib='madmom.BeatDetectionProcessor'):
         print('Beatmap deleted.')
 
 
-def _tosong(audio, bmap, samplerate, log):
+def _tosong(audio=None, bmap=None, samplerate=None, log=True):
     from .wrapper import _song_copy
     if isinstance(audio, str) or audio is None: audio = song(audio, bmap=bmap, log = log)
     elif isinstance(audio, list) or isinstance(audio, numpy.ndarray) or isinstance(audio, tuple):
@@ -756,6 +766,7 @@ def beatswap(pattern: str, audio = None, scale: float = 1, shift: float = 0, out
     audio = _tosong(audio=audio, bmap=bmap, samplerate=samplerate, log=log)
     output = _outputfilename(output=output, filename=audio.path, suffix=suffix)
     audio.quick_beatswap(pattern = pattern, scale=scale, shift=shift, output=output)
+    return audio.path
 
 def generate_beat_image(audio = None, output='', samplerate = None, bmap = None, log = True, ext='png', maximum=4096):
     audio = _tosong(audio=audio, bmap=bmap, samplerate=samplerate, log=log)
@@ -763,3 +774,10 @@ def generate_beat_image(audio = None, output='', samplerate = None, bmap = None,
     audio.beatmap.generate()
     audio.beat_image.generate()
     audio.beat_image.write(output=output, maximum = maximum)
+    return output
+
+def generate_osu_map(audio = None, samplerate = None, log = True, difficulties = [0.2, 0.1, 0.08, 0.06, 0.04, 0.02, 0.01, 0.005]):
+    audio = _tosong(audio=audio, samplerate=samplerate, log=log)
+    audio.hitmap.generate()
+    audio.generate_osu_beatmap(difficulties=difficulties)
+    return audio.path

@@ -1,32 +1,64 @@
 import gradio as gr, numpy as np
-from gradio.components import Audio, Textbox, Checkbox
+from gradio.components import Audio, Textbox, Checkbox, Image
 import beat_manipulator as bm
-def BeatSwap(audiofile, pattern: str, scale:float, shift:float, caching:bool):
-    scale=float(scale)
-    shift=float(shift)
-    song=bm.song(path=audiofile, filename=audiofile.split('.')[-2][:-8]+'.'+audiofile.split('.')[-1], caching=caching)
-    song.quick_beatswap(output=None, pattern=pattern, scale=scale, shift=shift)
+import cv2
+def _safer_eval(string:str) -> float:
+    if isinstance(string, str): 
+        string = eval(''.join([i for i in string if i.isdecimal() or i in '.+-*/']))
+    return string
+
+def BeatSwap(audiofile, pattern: str, scale:float, shift:float, caching:bool, variableBPM:bool):
+    print(f'___ PATH = {audiofile} ___')
+    scale=_safer_eval(scale)
+    shift=_safer_eval(shift)
+    if audiofile is not None:
+        try:
+            song=bm.song(path=audiofile, filename=audiofile.split('.')[-2][:-8]+'.'+audiofile.split('.')[-1], caching=caching)
+        except Exception as e:
+            print(e)
+            song=bm.song(path=audiofile, caching=caching)
+    else: print(f'Audiofile is {audiofile}')
+    lib = 'madmom.BeatDetectionProcessor' if variableBPM is False else 'madmom.BeatTrackingProcessor'
+    song.beatmap.generate(lib=lib, caching=caching)
+    try:
+        song.beat_image.generate()
+        image = song.beat_image.combined
+        y=min(len(image), len(image[0]), 2048)
+        y=max(y, 2048)
+        image = np.clip(cv2.resize(image, (y,y), interpolation=cv2.INTER_NEAREST).T/255, -1, 1)
+        print(image)
+    except Exception as e: 
+        print(e)
+        image = [[0,0,0],[0,0,0],[0,0,0]]
+    song.quick_beatswap(output=None, pattern=pattern, scale=scale, shift=shift, lib=lib)
+    song.audio = (np.clip(np.asarray(song.audio), -1, 1) * 32767).astype(np.int16).T
     #song.write_audio(output=bm.outputfilename('',song.filename, suffix=' (beatswap)'))
-    return (song.samplerate, np.asarray(song.audio).T)
+    print('___ SUCCESS ___')
+    return ((song.samplerate, song.audio), image)
 
 audiofile=Audio(source='upload', type='filepath')
-patternbox = Textbox(label="Pattern:", placeholder="1, 3, 2, 4!", value="1,  1:1.5,  3,  3:3.5,  5,  5:5.5,  3,  3:3.5,  7,  8", lines=1)
-scalebox = Textbox(value=1, label="Beatmap scale, beatmap's beats per minute will be multiplied by this:", placeholder=1, lines=1)
+patternbox = Textbox(label="Pattern, comma separated:", placeholder="1, 3, 2, 4!", value="1, 2r, 4, 5,    3, 6r, 8, 7,    9, 11, 12, 13,   15, 13s2, 14s2, 14d9, 16s4, 16s4, 16s2", lines=1)
+scalebox = Textbox(value=0.5, label="Beatmap scale, beatmap's beats per minute will be multiplied by this:", placeholder=1, lines=1)
 shiftbox = Textbox(value=0, label="Beatmap shift, in beats (applies before scaling):", placeholder=0, lines=1)
-cachebox = Checkbox(value=True, label="""Enable caching beatmaps. If True, a text file with the beatmap will be saved to the server (your PC if you are running locally), so that beatswapping for the second time doesn't have to generate the beatmap again. 
+cachebox = Checkbox(value=True, label="""Enable caching beatmaps. If enabled, a text file with the beatmap will be saved to the server (your PC if you are running locally), so that beatswapping for the second time doesn't have to generate the beatmap again. 
 
 Text file will be named after your file, and will only contain a list of numbers with positions of each beat.""")
+beatdetectionbox = Checkbox(value=False, label='Enable support for variable BPM, however this makes beat detection slightly less accurate')
 
-gr.Interface (fn=BeatSwap,inputs=[audiofile,patternbox,scalebox,shiftbox, cachebox],outputs=Audio(type='numpy'),theme="default",
+gr.Interface (fn=BeatSwap,inputs=[audiofile,patternbox,scalebox,shiftbox, cachebox, beatdetectionbox],outputs=[Audio(type='numpy'), Image(type='numpy')],theme="default",
 title = "Stunlocked's Beat Manipulator"
-,description = "Remix music using AI-powered beat detection and advanced beat swapping. https://github.com/stunlocked1/BeatManipulator. Collab version - https://colab.research.google.com/drive/1gEsZCCh2zMKqLmaGH5BPPLrImhEGVhv3?usp=sharing"
+,description = """Remix music using AI-powered beat detection and advanced beat swapping. Make \"every other beat is missing\" remixes, or completely change beat of the song. 
+
+Github - https://github.com/stunlocked1/BeatManipulator. 
+
+Colab version - https://colab.research.google.com/drive/1gEsZCCh2zMKqLmaGH5BPPLrImhEGVhv3?usp=sharing"""
 ,article="""# <h1><p style='text-align: center'><a href='https://github.com/stunlocked1/BeatManipulator' target='_blank'>Github</a></p></h1>
 
 # Basic usage
 
 Upload your audio, enter the beat swapping pattern, change scale and shift if needed, and run the app.
 
-You can test where each beat is by writing `test` into the `pattern` field, which will put cowbells on each beat. Beatmap can sometimes be shifted, for example 0.5 beats forward, so use scale and shift to adjust it.
+It can be useful to test where each beat is by writing `test` into the `pattern` field, which will put cowbells on each beat. Beatmap can sometimes be shifted, for example 0.5 beats forward, so use scale and shift to adjust it.
 
 Feel free to use complex patterns and very low scales - most of the computation time is in detecting beats, not swapping them.
 
@@ -55,7 +87,7 @@ there are certain commands you can write in pattern instead of the actual patter
 - `reverse` - reverses the order of all beats
 - `test` - test beat detection by putting cowbells on each beat. The highest pitched cowbell should be on the first beat; next cowbell should be on the snare. If it is not, use scale and shift.
 
-There are also some interesting patterns there: https://github.com/stunlocked1/BeatManipulator/blob/main/presets.json. Those are meant to be used with properly adjusted shift and scale, where 1st beat is 1st kick, 2nd beat is the snare after it.
+There are also some interesting patterns there: https://github.com/stunlocked1/BeatManipulator/blob/main/presets.json. Those are meant to be used with properly adjusted shift and scale, where 1st beat is 1st kick, 2nd beat is the snare after it, etc.
 
 Check my soundcloud https://soundcloud.com/stunlocked
 """

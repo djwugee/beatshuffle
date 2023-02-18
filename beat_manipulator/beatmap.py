@@ -226,7 +226,7 @@ class beatmap:
         if end is not None: self.beatmap=self.beatmap[self.beatmap<=end].astype(int)
 
 class hitmap(beatmap):
-    def generate(self, lib='madmom.madmom.RNNBeatProcessor', caching=True):
+    def generate(self, lib='madmom.MultiModelSelectionProcessor', caching=True):
         if self.log is True: print(f'analyzing hits using {lib}; ')
         self.hitlib=lib
         """Finds positions of actual instrument/drum hits."""
@@ -242,7 +242,7 @@ class hitmap(beatmap):
                 cached=True
             except OSError: cached=False
         if cached is False:
-            if lib=='madmom.RNNBeatProcessor':
+            if lib=='madmom.RNNBeatProcessor': #broken
                 import madmom
                 proc = madmom.features.beats.RNNBeatProcessor()
                 self.beatmap = proc(madmom.audio.signal.Signal(self.audio.T, self.samplerate))
