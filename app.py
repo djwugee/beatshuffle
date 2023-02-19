@@ -4,7 +4,9 @@ import beat_manipulator as bm
 import cv2
 def _safer_eval(string:str) -> float:
     if isinstance(string, str): 
-        string = eval(''.join([i for i in string if i.isdecimal() or i in '.+-*/']))
+        try:
+            string = eval(''.join([i for i in string if i.isdecimal() or i in '.+-*/']))
+        except: string=1
     return string
 
 def BeatSwap(audiofile, pattern: str = 'test', scale:float = 1, shift:float = 0, caching:bool = True, variableBPM:bool = False):
@@ -17,6 +19,7 @@ def BeatSwap(audiofile, pattern: str = 'test', scale:float = 1, shift:float = 0,
     try:
         shift=_safer_eval(shift)
     except: shift = 0
+    if scale <0: scale = -scale
     if scale < 0.02: scale = 0.02
     if audiofile is not None:
         try:
@@ -57,9 +60,7 @@ audiofile=Audio(source='upload', type='filepath')
 patternbox = Textbox(label="Pattern, comma separated:", placeholder="1, 3, 2, 4!", value="1, 2!", lines=1)
 scalebox = Textbox(value=1, label="Beatmap scale, beatmap's beats per minute will be multiplied by this:", placeholder=1, lines=1)
 shiftbox = Textbox(value=0, label="Beatmap shift, in beats (applies before scaling):", placeholder=0, lines=1)
-cachebox = Checkbox(value=True, label="""Enable caching beatmaps. If enabled, a text file with the beatmap will be saved to the server (your PC if you are running locally), so that beatswapping for the second time doesn't have to generate the beatmap again. 
-
-Text file will be named after your file, and will only contain a list of numbers with positions of each beat.""")
+cachebox = Checkbox(value=True, label="Enable caching generated beatmaps for faster loading. Saves a file with beat positions and loads it when you open same audio again.")
 beatdetectionbox = Checkbox(value=False, label='Enable support for variable BPM, however this makes beat detection slightly less accurate')
 
 gr.Interface (fn=BeatSwap,inputs=[audiofile,patternbox,scalebox,shiftbox, cachebox, beatdetectionbox],outputs=[Audio(type='numpy'), Image(type='numpy')],theme="default",
@@ -75,25 +76,31 @@ Colab version - https://colab.research.google.com/drive/1gEsZCCh2zMKqLmaGH5BPPLr
 
 Upload your audio, enter the beat swapping pattern, change scale and shift if needed, and run the app.
 
-It can be useful to test where each beat is by writing `test` into the `pattern` field, which will put cowbells on each beat. Beatmap can sometimes be shifted, for example 0.5 beats forward, so use scale and shift to adjust it.
+It can be useful to test where each beat is by writing `test` into the `pattern` field, which will put cowbells on each beat. Highest cowbell should be the on first beat.
+
+Use scale and shift to adjust the beatmap, for example if it is shifted 0.5 beats forward, set shift to -0.5. If it is two times faster than you want, set scale to 0.5
 
 Feel free to use complex patterns and very low scales - most of the computation time is in detecting beats, not swapping them.
 
 # Pattern syntax
 
-Patterns are sequences of numbers or ranges, separated by `,`. Numbers and ranges can be followed by letters that apply effects to them. Spaces can be freely used for formatting as they will be ignored. Any other character that isnt used in the syntax can also be used for formatting but only between beats, not inside them.
+Patterns are sequences of expressions, separated by `,` - for example, `1>3/8,   1>3/8,   1>0.25,   2,   3>0.75s2,   3>3/8,   3>0.25,   4d9`. Spaces can be freely used for formatting as they will be ignored. Any other character that isnt used in the syntax can also be used for formatting but only between beats, not inside them.
 - `1, 3, 2, 4` - every 4 beats, swap 2nd and 3rd beat. This pattern loops every 4 beats, because 4 is the biggest number in it.
-- `!` after a number sets length of the pattern (beat isnt played). `1, 3, 4!` - every 4 beats, play first and third beats, i.e. skip every second beat (equivalent to `1, 2!`)
-- `1, 3, 4` - skip 2nd beat
-- `1, 2, 2, 4` - repeat 2nd beat
-- `1, 1:1.5, 4` - play a range of beats. `0:0.5` means first half of 1st beat. Keep that in mind, to play first half of 5th beat, you do `4:4.5`, not `5:5.5`. `1` is equivalent to `0:1`. `1.5` is equivalent to `0.5:1.5`. `1,2,3,4` is `0:4`.
-- `1, 0:1/3, 0:1/3, 2/3:1` - you can use expressions with `+`, `-`, `*`, `/`.
-- `?` after a beat makes that number not count for looping. `1, 2, 3, 4!, 8?` - every 4 beats, 4th beat is replaced with 8th beat.
+- `1, 3, 4` - every 4 beats, skip 2nd beat.
+- `1, 2, 2, 4` - every 4 beats, repeat 2nd beat.
+- `1, 2!` - skip every second beat. `!` after a number sets length of the pattern (beat isnt played). `1, 2, 3, 4!` - skip every 4th beat.
+- `2>0.5` - play only first half of the second beat. `>` after a beat allows you to take first `i` of that beat.
+- `2<0.5` - play only second half of the second beat. `<` after a beat takes last `i` of that beat.
+- `1.5:4.5` - play a range of beats from 1.5 to 4.5. `0:0.5` means first half of 1st beat. Keep that in mind, to play first half of 5th beat, you do `4:4.5`, not `5:5.5`. `1` is equivalent to `0:1`. `1.5` is equivalent to `0.5:1.5`. `1,2,3,4` is `0:4`.
+
+**Tip: instead of slicing beats, sometimes it is easier to make scale smaller, like 0.5 or 0.25.**
+- `1, 1>1/3, 1>1/3, 1<1/3` - you can use math expressions with `+`, `-`, `*`, `/` in place of numbers.
+- `1, 2, 3, 4!, 8?` - every 4 beats, 4th beat is replaced with 8th beat. `?` after a beat makes that number not count for looping. 
 - `v` + number - controls volume of that beat. `1v2` means 200% volume, `1v1/3` means 33.33% volume, etc.
-- `r` after a beat reverses that beat. `1r, 2` - every two beats first beat will be reversed
+- `r` after a beat reverses that beat. `1r, 2` - every two beats, first beat will be reversed
 - another way to reverse - `4:0` is reversed `0:4`.
 - `s` + number - changes speed and pitch of that beat. 2 will be 2 times faster, 1/2 will be 2 times slower. Note: Only integers or 1/integer numbers are supported, everything else will be rounded.
-- `c` - swaps left and right channels of the beat. If followed by 0, mutes left channel instead, 1 - right channel.
+- `c` - if not followed by a number, swaps left and right channels of the beat. If followed by 0, mutes left channel, 1 - right channel.
 - `b` + number - bitcrush. The higher the number, the stronger the effect. Barely noticeable at values less then 1
 - `d` + number - downsample (8-bit sound). The higher the number, the stronger the effect. Starts being noticeable at 3, good 8-bit sounding values are around 8+.
 - `t` + number - saturation

@@ -253,6 +253,7 @@ class song:
             n+=1
         if type(self.audio) is tuple or list: self.audio = numpy.asarray(self.audio)
         self.audio = numpy.asarray([self.audio[0,n:], self.audio[1,n:]])
+        self.beatmap._toarray()
         if self.bm is not None: 
             self.beatmap.beatmap=numpy.absolute(self.beatmap.beatmap-n)
         if self.hm is not None: 
@@ -273,20 +274,56 @@ class song:
             while '  ' in pattern: pattern = pattern.relace('  ', ' ')
             pattern=pattern.split(sep)
         self._printlog(f"beatswapping with {' '.join(pattern)}; ")
+        prev,prevb = None,None
         for j in pattern:
             s=''
             if '?' not in j:
                 for i in j:
-                    if i.isdigit() or i=='.' or i=='-' or i=='/' or i=='+' or i=='%': s=str(s)+str(i)
+                    #get the math expression
+                    #print(f'j = {j}, s = {s}, i = {i}, size = {size}, prev = {prev}, prevb = {prevb}')
+                    if i.isdecimal() or i=='.' or i=='-' or i=='/' or i=='+' or i=='%': s=str(s)+str(i)
+                    #if got :, write it to size
                     elif i==':':
                         if s=='': s='0'
-                        #print(s, _safer_eval(s))
                         size=max(math.ceil(float(_safer_eval(s))), size)
                         s=''
+                    #if got ;, save the number and then add it
+                    elif i=='>':
+                        if s=='': s='0'
+                        size=max(math.ceil(float(_safer_eval(s))), size)
+                        prev = _safer_eval(s)-1
+                        s=''
+                    elif i=='<':
+                        if s=='': s='0'
+                        size=max(math.ceil(float(_safer_eval(s))), size)
+                        prevb = _safer_eval(s)
+                        s=''
+                    # if prev is defined, add it to s (a>b to a+b)
+                    elif prev is not None:
+                        if s=='': s='0'
+                        #print(1, _safer_eval(s), prev, float(_safer_eval(s))+float(prev))
+                        size=max(math.ceil(float(_safer_eval(s))+float(prev)), size)
+                        prev=None
+                        break
+                    #prevb : a<b to a-b
+                    elif prevb is not None:
+                        if s=='': s='0'
+                        #print(2, _safer_eval(s), prevb, float(_safer_eval(s))+float(prevb))
+                        size=max(math.ceil(float(_safer_eval(s))-float(prevb)), size)
+                        prevb=None
+                        break
+                    # i isn't digit or any of the symbols, so stop parsing
                     elif s!='': break
+                #print(f'end: j = {j}, s = {s}, i = {i}, size = {size}, prev = {prev}, prevb = {prevb}')
                 if s=='': s='0'
             if s=='': s='0'
             size=max(math.ceil(float(_safer_eval(s))), size)
+            if prev is not None: 
+                size=max(math.ceil(float(_safer_eval(s))+float(prev)), size)
+                prev=None
+            if prevb is not None: 
+                size=max(math.ceil(float(_safer_eval(s))-float(prevb)), size)
+                prev=None
 
         self._audio_tolist()
         self.beatmap._toarray()
@@ -339,7 +376,7 @@ class song:
                     x=i.index(c)+1
                     z=''
                     try:
-                        while i[x].isdigit() or i[x]=='.' or i[x]=='-' or i[x]=='/' or i[x]=='+' or i[x]=='%': 
+                        while i[x].isdecimal() or i[x]=='.' or i[x]=='-' or i[x]=='/' or i[x]=='+' or i[x]=='%': 
                             z+=i[x]
                             x+=1
                         return z
@@ -352,44 +389,68 @@ class song:
         for j in range(iterations+1):
             for i in pattern:
                 if '!' not in i:
-                    n,s,st,reverse,z=0,'',None,False,None
+                    n,s,st,reverse,z, is_c, is_cr=0,'',None,False,None,False,False
                     for c in i:
                         n+=1
                         #print('c =', s, ',  st =', st, ',   s =', s, ',   n =,',n)
 
                         # Get the character
-                        if c.isdigit() or c=='.' or c=='-' or c=='/' or c=='+' or c=='%': 
+                        if c.isdecimal() or c=='.' or c=='-' or c=='/' or c=='+' or c=='%': 
                             s=str(s)+str(c)
                         
                         # If character is : - get start
-                        elif s!='' and c==':':
+                        elif s!='' and (c==':' or c=='>' or c=='<'):
                             #print ('Beat start:',s,'=', _safer_eval(s),'=',int(_safer_eval(s)//1), '+',j,'*',size,'    =',int(_safer_eval(s)//1)+j*size, ',   mod=',_safer_eval(s)%1)
-                            try: st=self.beatmap[int(_safer_eval(s)//1)+j*size ] + _safer_eval(s)%1* (self.beatmap[int(_safer_eval(s)//1)+j*size +1] - self.beatmap[int(_safer_eval(s)//1)+j*size])
+                            try: 
+                                sti = _safer_eval(s)
+                                if c=='>': sti-=1
+                                st=self.beatmap[int(sti//1)+j*size ] + sti%1* (self.beatmap[int(sti//1)+j*size +1] - self.beatmap[int(sti//1)+j*size])
+                                if c == '>': is_c = True
+                                elif c=='<': is_cr = True
+                                else: 
+                                    is_c = False                     
+                                    is_cr = False                     
                             except IndexError: break
                             s=''
                         
                         # create a beat
-                        if s!='' and (n==len(i) or not(c.isdigit() or c=='.' or c=='-' or c=='/' or c=='+' or c=='%')):
+                        if s!='' and (n==len(i) or not(c.isdecimal() or c=='.' or c=='-' or c=='/' or c=='+' or c=='%')):
 
-                            # start already exists
+                            # start already exists, e.g. : or >
                             if st is not None:
                                 #print ('Beat end:  ',s,'=', _safer_eval(s),'=',int(_safer_eval(s)//1), '+',j,'*',size,'    =',int(_safer_eval(s)//1)+j*size, ',   mod=',_safer_eval(s)%1)
                                 try:
-                                    s=self.beatmap[int(_safer_eval(s)//1)+j*size ] + _safer_eval(s)%1* (self.beatmap[int(_safer_eval(s)//1)+j*size +1] - self.beatmap[int(_safer_eval(s)//1)+j*size])
-                                    #print(s)
+                                    #print(1, is_c, s, st)
+                                    if is_c is False and is_cr is False:
+                                        si = _safer_eval(s)
+                                        s=self.beatmap[int(si//1)+j*size ] + si%1* (self.beatmap[int(si//1)+j*size +1] - self.beatmap[int(si//1)+j*size])
+                                    elif is_c is True:
+                                        si=sti+_safer_eval(s)
+                                        s=(self.beatmap[int(si//1)+j*size ] + si%1* (self.beatmap[int(si//1)+j*size +1] - self.beatmap[int(si//1)+j*size]))
+                                        is_c = False
+                                    elif is_cr is True:
+                                        si=sti-_safer_eval(s)
+                                        s=(self.beatmap[int(si//1)+j*size ] + si%1* (self.beatmap[int(si//1)+j*size +1] - self.beatmap[int(si//1)+j*size]))
+                                        #print(si, sti, st, s)
+                                        st, s = s, st
+                                        is_cr = False
+                                    #print(2, is_c, s, st)
                                 except IndexError: break
                             else:
                                 # start doesn't exist
                                 #print ('Beat start:',s,'=', _safer_eval(s),'=',int(_safer_eval(s)//1), '+',j,'*',size,'- 1 =',int(_safer_eval(s)//1)+j*size,   ',   mod=',_safer_eval(s)%1)
                                 #print ('Beat end:  ',s,'=', _safer_eval(s),'=',int(_safer_eval(s)//1), '+',j,'*',size,'    =',int(_safer_eval(s)//1)+j*size+1, ',   mod=',_safer_eval(s)%1)
                                 try:
-                                    st=self.beatmap[int(_safer_eval(s)//1)+j*size-1 ] + _safer_eval(s)%1* (self.beatmap[int(_safer_eval(s)//1)+j*size +1] - self.beatmap[int(_safer_eval(s)//1)+j*size])
-                                    s=self.beatmap[int(_safer_eval(s)//1)+j*size ] + _safer_eval(s)%1* (self.beatmap[int(_safer_eval(s)//1)+j*size +1] - self.beatmap[int(_safer_eval(s)//1)+j*size])
+                                    si = _safer_eval(s)
+                                    st=self.beatmap[int(si//1)+j*size-1 ] + si%1* (self.beatmap[int(si//1)+j*size +1] - self.beatmap[int(si//1)+j*size])
+                                    s=self.beatmap[int(si//1)+j*size ] + si%1* (self.beatmap[int(si//1)+j*size +1] - self.beatmap[int(si//1)+j*size])
                                 except IndexError: break
                             
                             if st>s: 
                                 s, st=st, s
                                 reverse=True
+                            if st<0: st=0
+                            if s<0 or st==s: continue
 
                             # create the beat
                             if len(self.audio)>1: 
