@@ -9,21 +9,30 @@ def _safer_eval(string:str) -> float:
 
 def BeatSwap(audiofile, pattern: str = 'test', scale:float = 1, shift:float = 0, caching:bool = True, variableBPM:bool = False):
     print()
-    print(f'___ PATH = {audiofile} ___')
-    if scale == '' or scale is None: scale = 1
-    if shift == '' or shift is None: shift = 0
+    print(f'path = {audiofile}, pattern = "{pattern}", scale = {scale}, shift = {shift}, caching = {caching}, variable BPM = {variableBPM}', end=',  ')
     if pattern == '' or pattern is None: pattern = 'test'
-    scale=_safer_eval(scale)
-    shift=_safer_eval(shift)
+    try:
+        scale=_safer_eval(scale)
+    except: scale = 1
+    try:
+        shift=_safer_eval(shift)
+    except: shift = 0
+    if scale < 0.02: scale = 0.02
     if audiofile is not None:
         try:
-            song=bm.song(path=audiofile, filename=audiofile.split('.')[-2][:-8]+'.'+audiofile.split('.')[-1], caching=caching)
+            song=bm.song(path=audiofile, filename=audiofile.split('.')[-2][:-8]+'.'+audiofile.split('.')[-1], caching=caching, log=False)
         except Exception as e:
             print(f'Failed to load audio, retrying: {e}')
-            song=bm.song(path=audiofile, caching=caching)
+            song=bm.song(path=audiofile, caching=caching, log=False)
     else: 
         print(f'Audiofile is {audiofile}')
         return
+    try:
+        print(scale, shift, len(song.audio[0])/song.samplerate)
+        if len(song.audio[0]) > (song.samplerate*1800):
+            song.audio = np.asarray(song.audio)
+            song.audio = song.audio[:,:song.samplerate*1800]
+    except Exception as e: print(f'Reducing audio size failed, why? {e}')
     lib = 'madmom.BeatDetectionProcessor' if variableBPM is False else 'madmom.BeatTrackingProcessor'
     song.beatmap.generate(lib=lib, caching=caching)
     song.beatmap.shift(shift)
