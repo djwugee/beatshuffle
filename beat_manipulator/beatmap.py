@@ -57,6 +57,7 @@ class beatmap:
         if lib=='madmom.BeatTrackingProcessor':
             proc = madmom.features.beats.BeatTrackingProcessor(fps=100)
             act = madmom.features.beats.RNNBeatProcessor()(madmom.audio.signal.Signal(self.audio.T, self.samplerate))
+            assert len(act)>200, f'Audio file is too short, len={len(act)}'
             self.beatmap= proc(act)*self.samplerate
         if lib=='madmom.BeatTrackingProcessor.constant':
             proc = madmom.features.beats.BeatTrackingProcessor(fps=100, look_ahead=None)
