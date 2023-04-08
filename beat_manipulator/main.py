@@ -1,846 +1,516 @@
-import numpy
-numpy.set_printoptions(suppress=True)
-from .beatmap import beatmap, hitmap
-from .image import spectogram, beat_image
-
-def _safer_eval(string:str) -> float:
-    if isinstance(string, str): 
-        #print(''.join([i for i in string if i.isdecimal() or i in '.+-*/']))
-        string = eval(''.join([i for i in string if i.isdecimal() or i in '.+-*/']))
-    return string
-
-def open_audio(filename=None, lib='auto') -> numpy.ndarray:
-    """Opens audio from path, returns (audio, samplerate) tuple.
-    
-    Audio is returned as an array with normal volume range between -1, 1.
-    
-    Example of returned audio: 
-    
-    [
-        [0.35, -0.25, ... -0.15, -0.15], 
-    
-        [0.31, -0.21, ... -0.11, -0.07]
-    ]"""
-    if filename is None:
-        from tkinter.filedialog import askopenfilename
-        filename = askopenfilename(title='select song', filetypes=[("mp3", ".mp3"),("wav", ".wav"),("flac", ".flac"),("ogg", ".ogg"),("wma", ".wma")])
-    filename=filename.replace('\\', '/')
-    if lib=='pedalboard.io':
-        import pedalboard.io
-        with pedalboard.io.AudioFile(filename) as f:
-            audio = f.read(f.frames)
-            samplerate = f.samplerate
-    elif lib=='librosa':
-        import librosa
-        audio, samplerate = librosa.load(filename, sr=None, mono=False)
-    elif lib=='soundfile':
-        import soundfile
-        audio, samplerate = soundfile.read(filename)
-        audio=audio.T
-    elif lib=='madmom':
-        import madmom
-        audio, samplerate = madmom.io.audio.load_audio_file(filename, dtype=float)
-        audio=audio.T
-    # elif lib=='pydub':
-    #     from pydub import AudioSegment
-    #     song=AudioSegment.from_file(filename)
-    #     audio = song.get_array_of_samples()
-    #     samplerate=song.frame_rate
-    #     print(audio)
-    #     print(filename)
-    elif lib=='auto':
-        for i in ('madmom', 'soundfile', 'librosa', 'pedalboard.io'):
-            try: 
-                audio,samplerate=open_audio(filename, i)
-                break
-            except Exception as e:
-                print(f'open_audio with {i}: {e}')
-    if len(audio)<2: audio=[audio]
-    return audio,samplerate
+import numpy as np, scipy.interpolate
+from . import io, utils
+from .effects import BM_EFFECTS
+from .metrics import BM_METRICS
+from .presets import BM_SAMPLES
 
 
-def _outputfilename(output, filename, suffix=' (beatswap)', ext='mp3'):
-    if not (output.lower().endswith('.mp3') or output.lower().endswith('.wav') or output.lower().endswith('.flac') or output.lower().endswith('.ogg') or 
-            output.lower().endswith('.aac') or output.lower().endswith('.ac3') or output.lower().endswith('.aiff')  or output.lower().endswith('.wma')):
-                return output+'.'.join(''.join(filename.split('/')[-1]).split('.')[:-1])+suffix+'.'+ext
-    
 class song:
-    def __init__(self, path:str=None, audio:numpy.array=None, samplerate:int=None, bmap:list=None, caching=True, filename=None, copied=False, log=True):
-        """song can be loaded from path to an audio file, or from a list/numpy array and samplerate. Audio array should have values from -1 to 1, multiple channels should be stacked vertically. Optionally you can provide your own beat map.
+    def __init__(self, audio = None, sr:int=None, log=True):
+        if audio is None: 
+            from tkinter import filedialog
+            audio = filedialog.askopenfilename()
         
-        Song object has the following attributes:
+        if isinstance(audio, song): self.path = audio.path
+        self.audio, self.sr = io._load(audio=audio, sr=sr)
 
-        path - file system path to load the audio file from. Can be absolute or relative.
-        
-        audio - either a numpy array with shape=(channels, values) or a list with two lists. Audio is converted to list for certain operations to improve performance.
-        
-        samplerate - integer, for example 44100. Determined automatically when audio is loaded from a path.
+        # unique filename is needed to generate/compare filenames for cached beatmaps
+        if isinstance(audio, str):
+            self.path = audio
+        elif not isinstance(audio, song):
+            self.path = 'unknown_' + str(hex(int(np.sum(self.audio)*(10**18))))
 
-        bmap - list of integers, with positions of each beat in samples.
+        self.log = log
+        self.beatmap = None
+        self.normalized = None
 
-        caching = True - if True, generated beatmaps will be saved to SavedBeatmaps folder and loaded when the same audio file is opened again, instead of generating beatmap each time.
-
-        log = True - if True, minimal info about all operations will be printed.
-        """
-        assert not (audio is not None and samplerate is None), 'If audio is provided, samplerate should be provided as well, for example samplerate=44100'
-        
-        self.audio=audio
-        self.samplerate=samplerate
-        
-        # ask for a path if audio isn't specified
-        if path is None and filename is None:
-            if audio is None:
-                from tkinter.filedialog import askopenfilename
-                self.path = askopenfilename(title='select song')
+    def _slice(self, a):
+        if a is None: return None
+        elif isinstance(a, float):
+            if (a_dec:=a%1) != 0:
+                a_int = int(int(a)//1)
+                start = self.beatmap[a_int]
+                return int(start + a_dec * (self.beatmap[a_int+1] - start))
             else:
-                # generate unique identifier for storing beatmap cache
-                audio_id = numpy.sum(audio[0][1000:2000]) if len(audio<2000) else numpy.sum(audio[1000:2000])
-                self.filename = 'unknown ' + str(hex(int(audio_id))) + ' ' + str(hex(int((audio_id%1)*(10**18))))
-                self.path = self.filename
-                print(self.filename)
-        else: 
-            if path is None: self.path=filename
-            else: self.path=path
+                return self.beatmap[int(a)]
+        elif isinstance(a, int): return self.beatmap[a]
+        else: raise TypeError(f'slice indices must be int, float, or None, not {type(a)}. Indice is {a}')
 
-        # load from zip
-        if self.path.lower().endswith('.zip'): 
-            import shutil,os
-            if os.path.exists('BeatManipulator_TEMP'): shutil.rmtree('BeatManipulator_TEMP')
-            os.mkdir('BeatManipulator_TEMP')
-            shutil.unpack_archive(self.path, 'BeatManipulator_TEMP')
-            for root,dirs,files in os.walk('BeatManipulator_TEMP'):
-                for fname in files:
-                    if fname.lower().endswith('.mp3') or fname.lower().endswith('.wav') or fname.lower().endswith('.ogg') or fname.lower().endswith('.flac'):
-                        self.audio, self.samplerate=open_audio(root.replace('\\','/')+'/'+fname)
-                        stop=True
-                        break
-                if stop is True: break
-            shutil.rmtree('BeatManipulator_TEMP')
-    
-        # open audio from path
-        if self.audio is None or self.samplerate is None:
-            self.audio, self.samplerate=open_audio(self.path)
+    def __getitem__(self, s):
+        if isinstance(s, slice): 
+            start = s.start
+            stop = s.stop
+            step = s.step
+            if start is not None and stop is not None:
+                if start > stop:
+                    is_reversed = -1
+                    start, stop = stop, start
+                else: is_reversed = None
+            if step is None or step == 1:
+                start = self._slice(start)
+                stop = self._slice(stop)
+                if isinstance(self.audio, list): return [self.audio[0][start:stop:is_reversed],self.audio[1][start:stop:is_reversed]]
+                else: return self.audio[:,start:stop:is_reversed]
+            else:
+                i = s.start if s.start is not None else 0
+                end = s.stop if s.stop is not None else len(self.beatmap)
+                if i > end: 
+                    step = -step
+                    if step > 0: i, end = end-2, i
+                elif step < 0: i, end = end-2, i
+                if step < 0: 
+                    is_reversed = True
+                    end -= 1
+                else: is_reversed = False
+                pattern = ''
+                while ((i > end) if is_reversed else (i < end)):
+                    pattern+=f'{i},'
+                    i+=step
+                song_copy = song(audio = self.audio, sr = self.sr, log = False)
+                song_copy.beatmap = self.beatmap.copy()
+                song_copy.beatmap = np.insert(song_copy.beatmap, 0, 0)
+                result = song_copy.beatswap(pattern = pattern, return_audio = True)
+                if isinstance(self.audio, np.ndarray): return result
+                else: return result.tolist()
 
-        # mono to stereo
-        if len(self.audio)>16:
-            self.audio=numpy.asarray((self.audio,self.audio))
+        elif isinstance(s, float):
+            start = self._slice(s-1)
+            stop = self._slice(s)
+            if isinstance(self.audio, list): return [self.audio[0][start:stop],self.audio[1][start:stop]]
+            else: return self.audio[:,start:stop]
+        elif isinstance(s, int):
+            start = self.beatmap[s-1]
+            stop = self.beatmap[s]
+            if isinstance(self.audio, list): return [self.audio[0][start:stop],self.audio[1][start:stop]]
+            else: return self.audio[:,start:stop]
+        elif isinstance(s, tuple):
+            start = self._slice(s[0])
+            stop = self._slice(s[0] + s[1])
+            if stop<0:
+                start -= stop
+                stop = -stop
+                step = -1
+            else: step = None
+            if isinstance(self.audio, list): return [self.audio[0][start:stop:step],self.audio[1][start:stop:step]]
+            else: return self.audio[:,start:stop:step]
+        elif isinstance(s, list):
+            start = s[0]
+            stop = s[1] if len(s) > 1 else None
+            if start > stop:
+                step = -1
+                start, stop = stop, start
+            else: step = None
+            start = self._slice(start)
+            stop = self._slice(stop)
+            if step is not None and stop is None: stop = self._slice(start + s.step)
+            if isinstance(self.audio, list): return [self.audio[0][start:stop:step],self.audio[1][start:stop:step]]
+            else: return self.audio[:,start:stop:step]
+        elif isinstance(s, str):
+            return self.beatswap(pattern = s, return_audio = True)
 
-        # stuff
-        self.path=self.path.replace('\\', '/')
-        if filename is None: self.filename=self.path.split('/')[-1]
-        else: self.filename=filename.replace('\\', '/').split('/')[-1]
-        self.samplerate=int(self.samplerate)
-
-        # artist,  title
-        if ' - ' in self.path.split('/')[-1]:
-            self.artist = self.path.split('/')[-1].split(' - ')[0]
-            self.title= '.'.join(self.path.split('/')[-1].split(' - ')[1].split('.')[:-1])
-        elif path is not None or filename is not None:
-            self.title=''.join(self.path.split('/')[-1].split('.')[:-1])
-            self.artist=None
-        else:
-            self.title = None
-            self.artist = None
-        self.caching=caching
-        self.log=log
-        if copied is False and self.log is True: 
-            if self.artist is not None or self.title is not None: print(f'Loaded {self.artist} - {self.title}; ')
-            elif filename is not None: print(f'Loaded {self.filename}; ')
-            elif path is not None: print(f'Loaded {self.path}; ')
-            else: print(f'Loaded audio file; ')
-        self.audio_isarray = True
         
-        if isinstance(bmap, beatmap): self.beatmap=bmap
-        else: self.beatmap = beatmap(beatmap = bmap, audio= self.audio, samplerate=self.samplerate, filename=self.filename, caching = caching, log=log, path=self.path, artist=self.artist, title=self.title)
-        self.hitmap = hitmap(audio= self.audio, samplerate=self.samplerate, filename=self.filename, caching = caching, log=log, path=self.path, artist=self.artist, title=self.title)
-        self.spectogram = spectogram(audio=self.audio, samplerate=self.samplerate, beatmap=self.beatmap, log=self.log)
-        self.beat_image = beat_image(audio=self.audio, samplerate=self.samplerate, beatmap=self.beatmap, log=self.log)
-    
-    @property
-    def bm(self):
-        return self.beatmap.beatmap
-    
-    @property
-    def hm(self):
-        return self.hitmap.beatmap
-    
-    def _printlog(self, string, end=None, force = False, forcei = False):
-        if (self.log is True or force is True) and forcei is False:
-            if end is None: print(string)
-            else:print(string,end=end)
-    
-    def _audio_tolist(self, force = True):
-        if self.audio_isarray:
-            self.audio = self.audio.tolist()
-            self.audio_isarray = False
-        elif force is True: 
-            self.audio = self.audio.tolist()
-            self.audio_isarray = False
+        else: raise TypeError(f'list indices must be int/float/slice/tuple, not {type(s)}; perhaps you missed a comma? Slice is `{s}`')
 
-    def _audio_toarray(self, force = True):
-        if not self.audio_isarray:
-            self.audio = numpy.asarray(self.audio)
-            self.audio_isarray = True
-        elif force is True: 
-            self.audio = numpy.asarray(self.audio)
-            self.audio_isarray = True
-            
-    def _update(self):
-        self.beatmap.audio = self.audio
-        self.hitmap.audio = self.audio
-        self.spectogram.audio = self.audio
-        self.beat_image.audio = self.audio
-        self.beat_image.beatmap = self.bm
 
-    def write(self, output:str, lib:str='auto', libs=('pedalboard.io', 'soundfile')):
-        """"writes audio to path specified by output. Path should end with file extension, for example `folder/audio.mp3`"""
-        self._audio_toarray()
-        if lib!='auto': self._printlog(f'writing {output} with {lib}')
-        if lib=='pedalboard.io':
-            #print(audio)
-            import pedalboard.io
-            with pedalboard.io.AudioFile(output, 'w', self.samplerate, self.audio.shape[0]) as f:
-                f.write(self.audio)
-        elif lib=='soundfile':
-            audio=self.audio.T
-            import soundfile
-            soundfile.write(output, audio, self.samplerate)
-            del audio
-        elif lib=='auto':
-            for i in libs:
-                try: 
-                    self.write(output, i)
-                    break
-                except Exception as e:
-                    print(e)
+    def _print(self, *args, end=None, sep=None):
+        if self.log: print(*args, end=end, sep=sep)
 
-        # elif lib=='pydub':
-        #     from pydub import AudioSegment
-        #     song = AudioSegment(self.audio.tobytes(), frame_rate=self.samplerate, sample_width=2, channels=2)
-        #     format = output.split('.')[-1]
-        #     if len(format) > 4: 
-        #         format='mp3' 
-        #         output = output + '.' + format
-        #     song.export(output, format=format)
 
-    # def generate_beatmap(self, lib='madmom.BeatDetectionProcessor', split=None):
-    #     self.beatmap = beatmap(beatmap=None, samplerate=self.samplerate, length=len(self.audio[0]),caching=self.caching,log=self.log)
-    #     self.beatmap.generate(audio=self.audio, samplerate=self.samplerate, lib=lib, caching=self.caching, split=split, filename=self.filename)
+    def write(self, output='', ext='mp3', suffix=' (beatswap)', literal_output=False):
+        """writes"""
+        if literal_output is False: output = io._outputfilename(output, filename=self.path, suffix=suffix, ext=ext)
+        io.write_audio(audio=self.audio, sr=self.sr, output=output, log=self.log)
+        return output
 
-    # def generate_hitmap(self, lib='madmom.BeatDetectionProcessor'):
-    #     self.hitmap=hitmap(beatmap=None, samplerate=self.samplerate, length = len(self.audio), caching=self.caching, log=self.log)
-    #     self.hitmap.generate(audio=self.audio, samplerate=self.samplerate, lib=lib, caching=self.caching, filename=self.filename)
 
-    def generate_osu_beatmap(self, difficulties = [0.2, 0.1, 0.08, 0.06, 0.04, 0.02, 0.01, 0.005]):
-        self.hitmap.osu(difficulties = difficulties)
-        import shutil, os
-        if self.path is not None: 
-            shutil.copyfile(self.path, 'BeatManipulator_TEMP/'+self.path.split('/')[-1])
-        else: self.write('BeatManipulator_TEMP/audio.mp3')
-        shutil.make_archive('BeatManipulator_TEMP', 'zip', 'BeatManipulator_TEMP')
-        outputname = _outputfilename('', self.path, '_'+self.hitmap.hitlib, 'osz')
-        if not os.path.exists(outputname):
-            os.rename('BeatManipulator_TEMP.zip', outputname)
-        else: print(f'{outputname} already exists!')
-        shutil.rmtree('BeatManipulator_TEMP')
-        self._printlog(f'Wrote {outputname}')
+    def beatmap_generate(self, lib='madmom.BeatDetectionProcessor', caching = True, load_settings = True):
+        """Find beat positions"""
+        from . import beatmap
+        self.beatmap = beatmap.generate(audio = self.audio, sr = self.sr, lib=lib, caching=caching, filename = self.path, log = self.log, load_settings = load_settings)
+        if load_settings is True:
+            audio_id=hex(len(self.audio[0]))
+            settingsDir="beat_manipulator/beatmaps/" + ''.join(self.path.split('/')[-1]) + "_"+lib+"_"+audio_id+'_settings.txt'
+            import os
+            if os.path.exists(settingsDir):
+                with open(settingsDir, 'r') as f:
+                    settings = f.read().split(',')
+                if settings[3] != None: self.normalized = settings[3]
+        self.beatmap_default = self.beatmap.copy()
+        self.lib = lib
 
-    def autotrim(self):
-        self._printlog(f'autotrimming; ')
-        n=0
-        for i in self.audio[0]:
-            if i>=0.0001:break
-            n+=1
-        if type(self.audio) is tuple or list: self.audio = numpy.asarray(self.audio)
-        self.audio = numpy.asarray([self.audio[0,n:], self.audio[1,n:]])
-        self.beatmap._toarray()
-        if self.bm is not None: 
-            self.beatmap.beatmap=numpy.absolute(self.beatmap.beatmap-n)
-        if self.hm is not None: 
-            print(self.hm)
-            self.hitmap.beatmap=numpy.absolute(self.hitmap.beatmap-n)
-        self._update()
+    def beatmap_scale(self, scale:float):
+        from . import beatmap
+        self.beatmap = beatmap.scale(beatmap = self.beatmap, scale = scale, log = self.log)
 
-    def beatswap(self, pattern: str, sep=',', smoothing=40, smoothing_mode='replace'):
-        import math, numpy
-        # get pattern size
-        size=0    
-        #cut processing??? not worth it, it is really fast anyways
-        if sep != ' ':
-            if sep not in pattern: pattern=pattern.replace(' ', sep) # separator not in patterm, e.g. forgot commas
-            while f'{sep}{sep}' in pattern: pattern = pattern.replace(f'{sep}{sep}', sep) # double separator
-            pattern=pattern.replace(' ', '').split(sep)
-        else: 
-            while '  ' in pattern: pattern = pattern.relace('  ', ' ')
-            pattern=pattern.split(sep)
-        self._printlog(f"beatswapping with {' '.join(pattern)}; ")
-        prev,prevb = None,None
-        for j in pattern:
-            s=''
-            if '?' not in j:
-                for i in j:
-                    #get the math expression
-                    #print(f'j = {j}, s = {s}, i = {i}, size = {size}, prev = {prev}, prevb = {prevb}')
-                    if i.isdecimal() or i=='.' or i=='-' or i=='/' or i=='+' or i=='%': s=str(s)+str(i)
-                    #if got :, write it to size
-                    elif i==':':
-                        if s=='': s='0'
-                        size=max(math.ceil(float(_safer_eval(s))), size)
-                        s=''
-                    #if got ;, save the number and then add it
-                    elif i=='>':
-                        if s=='': s='0'
-                        size=max(math.ceil(float(_safer_eval(s))), size)
-                        prev = _safer_eval(s)-1
-                        s=''
-                    elif i=='<':
-                        if s=='': s='0'
-                        size=max(math.ceil(float(_safer_eval(s))), size)
-                        prevb = _safer_eval(s)
-                        s=''
-                    # if prev is defined, add it to s (a>b to a+b)
-                    elif prev is not None:
-                        if s=='': s='0'
-                        #print(1, _safer_eval(s), prev, float(_safer_eval(s))+float(prev))
-                        size=max(math.ceil(float(_safer_eval(s))+float(prev)), size)
-                        prev=None
-                        break
-                    #prevb : a<b to a-b
-                    elif prevb is not None:
-                        if s=='': s='0'
-                        #print(2, _safer_eval(s), prevb, float(_safer_eval(s))+float(prevb))
-                        size=max(math.ceil(float(_safer_eval(s))-float(prevb)), size)
-                        prevb=None
-                        break
-                    # i isn't digit or any of the symbols, so stop parsing
-                    elif s!='': break
-                #print(f'end: j = {j}, s = {s}, i = {i}, size = {size}, prev = {prev}, prevb = {prevb}')
-                if s=='': s='0'
-            if s=='': s='0'
-            size=max(math.ceil(float(_safer_eval(s))), size)
-            if prev is not None: 
-                size=max(math.ceil(float(_safer_eval(s))+float(prev)), size)
-                prev=None
-            if prevb is not None: 
-                size=max(math.ceil(float(_safer_eval(s))-float(prevb)), size)
-                prev=None
+    def beatmap_shift(self, shift:float, mode = 1):
+        from . import beatmap
+        self.beatmap = beatmap.shift(beatmap = self.beatmap, shift = shift, log = self.log, mode = mode)
 
-        self._audio_tolist()
-        self.beatmap._toarray()
-        # turns audio into a tuple with L and R channels
-        self.audio=(self.audio[0], self.audio[1])
+    def beatmap_reset(self):
+        self.beatmap = self.beatmap_default.copy()
 
-        # adds the part before the first beat
-        result=(self.audio[0][:self.beatmap[0]],self.audio[1][:self.beatmap[0]])
-        beat=numpy.asarray([[],[]])
+    def beatmap_adjust(self, adjust = 500):
+        self.beatmap = np.append(np.sort(np.absolute(self.beatmap - adjust)), len(self.audio[0]))
 
-        # size, iterations are integers
-        size=int(max(size//1, 1))
-    
-        self.beatmap._add_beat_to_end()
+    def beatmap_save_settings(self, scale: float = None, shift: float = None, adjust: int = None, normalized = None, overwrite = 'ask'):
+        from . import beatmap
+        if self.beatmap is None: self.beatmap_generate()
+        beatmap.save_settings(audio = self.audio, filename = self.path, scale = scale, shift = shift,adjust = adjust, normalized = normalized, log=self.log, overwrite=overwrite, lib = self.lib)
 
-        iterations=int(len(self.beatmap)//size)
+    def beatswap(self, pattern = '1;"cowbell"s3v2, 2;"cowbell"s2, 3;"cowbell", 4;"cowbell"s0.5, 5;"cowbell"s0.25, 6;"cowbell"s0.4, 7;"cowbell"s0.8, 8;"cowbell"s1.6', 
+        scale:float = 1, shift:float = 0, length = None, samples:dict = BM_SAMPLES, effects:dict = BM_EFFECTS, metrics:dict = BM_METRICS, smoothing: int = 100, adjust=500, return_audio = False, normalize = False):
         
-        if 'random' in pattern[0].lower():
+        if normalize is True:
+            self.normalize_beats()
+        if self.beatmap is None: self.beatmap_generate()
+        beatmap_default = self.beatmap.copy()
+        self.beatmap = np.append(np.sort(np.absolute(self.beatmap - adjust)), len(self.audio[0]))
+        self.beatmap_shift(shift)
+        self.beatmap_scale(scale)
+
+        # baked in presets
+        #reverse
+        if pattern.lower() == 'reverse':
+            if return_audio is False:
+                self.audio = self[::-1]
+                self.beatmap = beatmap_default.copy()
+                return
+            else:
+                result = self[::-1]
+                self.beatmap = beatmap_default.copy()
+                return result
+        # shuffle
+        elif pattern.lower() == 'shuffle':
             import random
-            for i in range(len(self.beatmap)):
+            beats = list(range(len(self.beatmap)))
+            random.shuffle(beats)
+            beats = ','.join(list(str(i) for i in beats))
+            if return_audio is False:
+                self.beatswap(beats)
+                self.beatmap = beatmap_default.copy()
+                return
+            else:
+                result = self.beatswap(beats, return_audio = True)
+                self.beatmap = beatmap_default.copy()
+                return result
+        # test
+        elif pattern.lower() == 'test':
+            if return_audio is False:
+                self.beatswap('1;"cowbell"s3v2, 2;"cowbell"s2, 3;"cowbell", 4;"cowbell"s0.5, 5;"cowbell"s0.25, 6;"cowbell"s0.4, 7;"cowbell"s0.8, 8;"cowbell"s1.6')
+                self.beatmap = beatmap_default.copy()
+                return
+            else:
+                result = self.beatswap('1;"cowbell"s3v2, 2;"cowbell"s2, 3;"cowbell", 4;"cowbell"s0.5, 5;"cowbell"s0.25, 6;"cowbell"s0.4, 7;"cowbell"s0.8, 8;"cowbell"s1.6', return_audio = True)
+                self.beatmap = beatmap_default.copy()
+                return result
+        # random
+        elif pattern.lower() == 'random':
+            import random,math
+            pattern = ''
+            rand_length=0
+            while True:
+                rand_num = int(math.floor(random.triangular(1, 16, rand_length-1)))
+                if random.uniform(0, rand_num)>rand_length: rand_num = rand_length+1
+                rand_slice = random.choices(['','>0.5','>0.25', '<0.5', '<0.25', '<1/3', '<2/3', '>1/3', '>2/3', '<0.75', '>0.75', 
+                                             f'>{random.uniform(0.01,2)}', f'<{random.uniform(0.01,2)}'], weights = [13,1,1,1,1,1,1,1,1,1,1,1,1], k=1)[0]
+                
+                rand_effect = random.choices(['', 's0.5', 's2', f's{random.triangular(0.1,1,4)}', 'r','v0.5', 'v2', 'v0', 
+                                              f'd{int(random.triangular(1,8,16))}', 'g', 'c', 'c0', 'c1', f'b{int(random.triangular(1,8,4))}'], 
+                                              weights=[30, 2, 2, 2, 2, 1, 1, 2, 2, 1, 2, 2, 2, 1], k=1)[0]
+                
+                rand_join = random.choices([', ', ';'], weights = [5, 1], k=1)[0]
+                pattern += f'{rand_num}{rand_slice}{rand_effect}{rand_join}'
+                if rand_join == ',': rand_length+=1
+                if rand_length in [4, 8, 16]: 
+                    if random.uniform(rand_num,16)>14: break
+                else: 
+                    if random.uniform(rand_num,16)>15.5: break
+            pattern_length = 4
+            if rand_length > 6: pattern_length = 8
+            if rand_length > 12: pattern_length = 16
+            if rand_length > 24: pattern_length = 32
 
-                choice=random.randint(1,len(self.beatmap)-1)
-                for a in range(len(self.audio)): 
-                    try:
-                        beat=self.audio[a][self.beatmap[choice-1]:self.beatmap[choice]-smoothing]
-                        if smoothing>0: result[a].extend(numpy.linspace(result[a][-1],beat[0],smoothing))
-                        result[a].extend(beat)
-                    except IndexError: pass
-            self.audio = result
-            return
+
         
-        if 'reverse' in pattern[0].lower():
-            for a in range(len(self.audio)): 
-                for i in list(reversed(range(len(self.beatmap))))[:-1]:
-                    try:
-                        beat=self.audio[a][self.beatmap[i-1]:self.beatmap[i]-smoothing]
-                        #print(self.beatmap[i-1],self.beatmap[i])
-                        #print(result[a][-1], beat[0])
-                        if smoothing>0: result[a].extend(numpy.linspace(result[a][-1],beat[0],smoothing))
-                        result[a].extend(beat)
-                    except IndexError: pass
+        from . import parse
+        pattern, operators, pattern_length, shuffle_groups, shuffle_beats, c_slice, c_misc, c_join = parse.parse(pattern = pattern, samples = samples, pattern_length = length, log = self.log)
+        
+        #print(f'pattern length = {pattern_length}')
 
-            self.audio = result
-            return
+        # beatswap
+        n=-1
+        tries = 0
+        metric = None
+        result=[self.audio[:,:self.beatmap[0]]]
+        #for i in pattern: print(i)
+
+
+            
+        
+        # loop over pattern until it reaches the last beat
+        while n*pattern_length <= len(self.beatmap):
+            n+=1
+
+            # Every time pattern loops, shuffles beats with #
+            if len(shuffle_beats) > 0:
+                pattern = parse._shuffle(pattern, shuffle_beats, shuffle_groups)
+
+            # Loops over all beats in pattern
+            for num, b in enumerate(pattern):
+                if len(b) == 4: beat = b[3] # Sample has length 4
+                else: beat = b[0] # Else take the beat
+
+                if beat is not None:
+                    beat_as_string = ''.join(beat) if isinstance(beat, list) else beat
+                    # Skips `!` beats
+                    if c_misc[9] in beat_as_string: continue
+
+                # Audio is a sample or a song
+                if len(b) == 4: 
+                    audio = b[0]
+
+                    # Audio is a song
+                    if b[2] == c_misc[10]:
+                        try:
+
+                            # Song slice is a single beat, takes it
+                            if isinstance(beat, str):
+                                # random beat if `@` in beat (`_` is separator)
+                                if c_misc[4] in beat: beat = parse._random(beat, rchar = c_misc[4], schar = c_misc[5], length = pattern_length)
+                                beat = utils._safer_eval(beat) + pattern_length*n
+                                while beat > len(audio.beatmap)-1: beat = 1 + beat - len(audio.beatmap)
+                                beat = audio[beat]
+
+                            # Song slice is a range of beats, takes the beats
+                            elif isinstance(beat, list):
+                                beat = beat.copy()
+                                for i in range(len(beat)-1): # no separator
+                                    if c_misc[4] in beat[i]: beat[i] = parse._random(beat[i], rchar = c_misc[4], schar = c_misc[5], length = pattern_length)
+                                    beat[i] = utils._safer_eval(beat[i])
+                                    while beat[i] + pattern_length*n > len(audio.beatmap)-1: beat[i] = 1 + beat[i] - len(audio.beatmap)
+                                if beat[2] == c_slice[0]: beat = audio[beat[0] + pattern_length*n : beat[1] + pattern_length*n]
+                                elif beat[2] == c_slice[1]: beat = audio[beat[0] - 1 + pattern_length*n: beat[0] - 1 + beat[1] + pattern_length*n]
+                                elif beat[2] == c_slice[2]: beat = audio[beat[0] - beat[1] + pattern_length*n : beat[0] + pattern_length*n]
+
+                            # No Song slice, take whole song
+                            elif beat is None: beat = audio.audio
+
+                        except IndexError as e:
+                            print(e) 
+                            tries += 1
+                            if tries > 30: break
+                            continue
                     
-        #print(len(result[0]))
-        def beatswap_getnum(i: str, c: str):
-            if c in i:
-                try: 
-                    x=i.index(c)+1
-                    z=''
+                    # Audio is an audio file
+                    else:
+                        # No audio slice, takes whole audio
+                        if beat is None: beat = audio
+
+                        # Audio slice, takes part of the audio
+                        elif isinstance(beat, list):
+                            audio_length = len(audio[0])
+                            beat = [min(int(utils._safer_eval(beat[0])*audio_length), audio_length-1), min(int(utils._safer_eval(beat[1])*audio_length), audio_length-1)]
+                            if beat[0] > beat[1]: 
+                                beat[0], beat[1] = beat[1], beat[0]
+                                step = -1
+                            else: step = None
+                            beat = audio[:, beat[0] : beat[1] : step]
+                
+                # Audio is a beat
+                else:
                     try:
-                        while i[x].isdecimal() or i[x]=='.' or i[x]=='-' or i[x]=='/' or i[x]=='+' or i[x]=='%': 
-                            z+=i[x]
-                            x+=1
-                        return z
-                    except IndexError:
-                        return z
-                except ValueError: return None
+                        beat_str = beat if isinstance(beat, str) else ''.join(beat)
+                        # Takes a single beat
+                        if isinstance(beat, str):
+                            if c_misc[4] in beat: beat = parse._random(beat, rchar = c_misc[4], schar = c_misc[5], length = pattern_length)
+                            beat = self[utils._safer_eval(beat) + pattern_length*n]
 
-        #print(len(self.beatmap), size, iterations)
-        # processing
-        for j in range(iterations+1):
-            for i in pattern:
-                if '!' not in i:
-                    n,s,st,reverse,z, is_c, is_cr=0,'',None,False,None,False,False
-                    for c in i:
-                        n+=1
-                        #print('c =', s, ',  st =', st, ',   s =', s, ',   n =,',n)
+                        # Takes a range of beats
+                        elif isinstance(beat, list):
+                            beat = beat.copy()
+                            for i in range(len(beat)-1): # no separator
+                                if c_misc[4] in beat[i]: beat[i] = parse._random(beat[i], rchar = c_misc[4], schar = c_misc[5], length = pattern_length)
+                                beat[i] = utils._safer_eval(beat[i])
+                            if beat[2] == c_slice[0]: beat = self[beat[0] + pattern_length*n : beat[1] + pattern_length*n]
+                            elif beat[2] == c_slice[1]: beat = self[beat[0] - 1 + pattern_length*n: beat[0] - 1 + beat[1] + pattern_length*n]
+                            elif beat[2] == c_slice[2]: beat = self[beat[0] - beat[1] + pattern_length*n : beat[0] + pattern_length*n]
 
-                        # Get the character
-                        if c.isdecimal() or c=='.' or c=='-' or c=='/' or c=='+' or c=='%': 
-                            s=str(s)+str(c)
-                        
-                        # If character is : - get start
-                        elif s!='' and (c==':' or c=='>' or c=='<'):
-                            #print ('Beat start:',s,'=', _safer_eval(s),'=',int(_safer_eval(s)//1), '+',j,'*',size,'    =',int(_safer_eval(s)//1)+j*size, ',   mod=',_safer_eval(s)%1)
-                            try: 
-                                sti = _safer_eval(s)
-                                if c=='>': sti-=1
-                                st=self.beatmap[int(sti//1)+j*size ] + sti%1* (self.beatmap[int(sti//1)+j*size +1] - self.beatmap[int(sti//1)+j*size])
-                                if c == '>': is_c = True
-                                elif c=='<': is_cr = True
-                                else: 
-                                    is_c = False                     
-                                    is_cr = False                     
-                            except IndexError: break
-                            s=''
-                        
-                        # create a beat
-                        if s!='' and (n==len(i) or not(c.isdecimal() or c=='.' or c=='-' or c=='/' or c=='+' or c=='%')):
+                        # create a variable if `%` in beat
+                        if c_misc[7] in beat_str: metric = parse._metric_get(beat_str, beat, metrics, c_misc[7])
 
-                            # start already exists, e.g. : or >
-                            if st is not None:
-                                #print ('Beat end:  ',s,'=', _safer_eval(s),'=',int(_safer_eval(s)//1), '+',j,'*',size,'    =',int(_safer_eval(s)//1)+j*size, ',   mod=',_safer_eval(s)%1)
-                                try:
-                                    #print(1, is_c, s, st)
-                                    if is_c is False and is_cr is False:
-                                        si = _safer_eval(s)
-                                        s=self.beatmap[int(si//1)+j*size ] + si%1* (self.beatmap[int(si//1)+j*size +1] - self.beatmap[int(si//1)+j*size])
-                                    elif is_c is True:
-                                        si=sti+_safer_eval(s)
-                                        s=(self.beatmap[int(si//1)+j*size ] + si%1* (self.beatmap[int(si//1)+j*size +1] - self.beatmap[int(si//1)+j*size]))
-                                        is_c = False
-                                    elif is_cr is True:
-                                        si=sti-_safer_eval(s)
-                                        s=(self.beatmap[int(si//1)+j*size ] + si%1* (self.beatmap[int(si//1)+j*size +1] - self.beatmap[int(si//1)+j*size]))
-                                        #print(si, sti, st, s)
-                                        st, s = s, st
-                                        is_cr = False
-                                    #print(2, is_c, s, st)
-                                except IndexError: break
-                            else:
-                                # start doesn't exist
-                                #print ('Beat start:',s,'=', _safer_eval(s),'=',int(_safer_eval(s)//1), '+',j,'*',size,'- 1 =',int(_safer_eval(s)//1)+j*size,   ',   mod=',_safer_eval(s)%1)
-                                #print ('Beat end:  ',s,'=', _safer_eval(s),'=',int(_safer_eval(s)//1), '+',j,'*',size,'    =',int(_safer_eval(s)//1)+j*size+1, ',   mod=',_safer_eval(s)%1)
-                                try:
-                                    si = _safer_eval(s)
-                                    st=self.beatmap[int(si//1)+j*size-1 ] + si%1* (self.beatmap[int(si//1)+j*size +1] - self.beatmap[int(si//1)+j*size])
-                                    s=self.beatmap[int(si//1)+j*size ] + si%1* (self.beatmap[int(si//1)+j*size +1] - self.beatmap[int(si//1)+j*size])
-                                except IndexError: break
-                            
-                            if st>s: 
-                                s, st=st, s
-                                reverse=True
-                            if st<0: st=0
-                            if s<0 or st==s: continue
+                    except IndexError: 
+                        tries += 1
+                        if tries > 30: break
+                        continue
 
-                            # create the beat
-                            if len(self.audio)>1: 
-                                if smoothing_mode=='add': beat=numpy.asarray([self.audio[0][int(st):int(s)],self.audio[1][int(st):int(s)]])
-                                else: beat=numpy.asarray([self.audio[0][int(st):int(s)-smoothing],self.audio[1][int(st):int(s)-smoothing]])
-                            else:
-                                if smoothing_mode=='add': beat=numpy.asarray([self.audio[0][int(st):int(s)]])
-                                else: beat=numpy.asarray([self.audio[0][int(st):int(s)-smoothing]])
+                if len(beat[0])<1: continue #Ignores empty beats
+                
+                # Applies effects
+                effect = b[1]
+                for e in effect:
+                    if e[0] in effects:
+                        v = e[1]
+                        e = effects[e[0]]
+                        # parse effect value
+                        if isinstance(v, str):
+                            if metric is not None: v = parse._metric_replace(v, metric, c_misc[7])
+                            v = utils._safer_eval(v)
 
-                            # process the beat
-                            # channels
-                            z=beatswap_getnum(i,'c')
-                            if z is not None:
-                                if z=='': beat[0],beat[1]=beat[1],beat[0]
-                                elif _safer_eval(z)==0:beat[0]*=0
-                                else:beat[1]*=0
+                        # effects
+                        if e == 'volume':
+                            if v is None: v = 0
+                            beat = beat * v
+                        elif e == 'downsample':
+                            if v is None: v = 8
+                            beat = np.repeat(beat[:,::v], v, axis=1)
+                        elif e == 'gradient':
+                            beat = np.gradient(beat, axis=1)
+                        elif e == 'reverse':
+                            beat = beat[:,::-1]
+                        else:
+                            beat = e(beat, v)
 
-                            # volume
-                            z=beatswap_getnum(i,'v')
-                            if z is not None:
-                                if z=='': z='0'
-                                beat*=_safer_eval(z)
+                beat = np.clip(beat, -1, 1)
+                
+                # Adds the processed beat to list of beats.
+                # Separator is `,`
+                if operators[num] == c_join[0]:
+                    result.append(beat)
+                
+                # Makes sure beat doesn't get added on top of previous beat multiple times when pattern is out of range of song beats, to avoid distorted end.
+                elif tries<2:
 
-                            z=beatswap_getnum(i,'t')
-                            if z is not None:
-                                if z=='': z='2'
-                                beat**=1/_safer_eval(z)
+                    # Separator is `;` - always use first beat length, normalizes volume to 1.5
+                    if operators[num] == c_join[1]:
+                        length = len(beat[0])
+                        prev_length = len(result[-1][0])
+                        if length > prev_length: 
+                            result[-1] += beat[:,:prev_length]
+                        else:
+                            result[-1][:,:length] += beat
+                        limit = np.max(result[-1])
+                        if limit > 1.5:
+                            result[-1] /= limit*0.75
+                    
+                    # Separator is `~` - cuts to shortest
+                    elif operators[num] == c_join[2]:
+                        minimum = min(len(beat[0]), len(result[-1][0]))
+                        result[-1] = beat[:,:minimum-1] + result[-1][:,:minimum-1]
 
-                            # speed
-                            z=beatswap_getnum(i,'s')
-                            if z is not None:
-                                if z=='': z='2'
-                                z=_safer_eval(z)
-                                if z<1: 
-                                    beat=numpy.asarray((numpy.repeat(beat[0],int(1//z)),numpy.repeat(beat[1],int(1//z))))
-                                else:
-                                    beat=numpy.asarray((beat[0,::int(z)],beat[1,::int(z)]))
-                            
-                            # bitcrush
-                            z=beatswap_getnum(i,'b')
-                            if z is not None:
-                                if z=='': z='3'
-                                z=1/_safer_eval(z)
-                                if z<1: beat=beat*z
-                                beat=numpy.around(beat, max(int(z), 1))
-                                if z<1: beat=beat/z
+                    # Separator is `&` - extends to longest
+                    elif operators[num] == c_join[3]:
+                        length = len(beat[0])
+                        prev_length = len(result[-1][0])
+                        if length > prev_length: 
+                            beat[:,:prev_length] += result[-1]
+                            result[-1] = beat
+                        else:
+                            result[-1][:,:length] += beat
 
-                            # downsample
-                            z=beatswap_getnum(i,'d')
-                            if z is not None:
-                                if z=='': z='3'
-                                z=int(_safer_eval(z))
-                                beat=numpy.asarray((numpy.repeat(beat[0,::z],z),numpy.repeat(beat[1,::z],z)))
-
-                            # convert to list
-                            beat=beat.tolist()
-
-                            # effects with list
-                            # reverse
-                            if ('r' in i and reverse is False) or (reverse is True and 'r' not in i):
-                                beat=(beat[0][::-1],beat[1][::-1] )
-
-                            # add beat to the result
-                            for a in range(len(self.audio)): 
-                                #print('Adding beat... a, s, st:', a, s, st, sep=',  ')
-                                #print(result[a][-1])
-                                #print(beat[a][0])
-                                try:
-                                    if smoothing>0: result[a].extend(numpy.linspace(result[a][-1],beat[a][0],smoothing))
-                                    result[a].extend(beat[a])
-                                except IndexError: pass
-                                #print(len(result[0]))
-
-                            #   
-                            break
-
-        self.audio = result
-        self._update()
-
-    def beatsample(self, audio2, shift=0):
-        self._printlog(f'beatsample; ')
-        try: l=len(audio2[0])
-        except (TypeError, IndexError): 
-            l=len(audio2)
-            audio2=numpy.vstack((audio2,audio2))
-        for i in range(len(self.beatmap)):
-            #print(self.beatmap[i])
-            try: self.audio[:,int(self.beatmap[i]) + int(float(shift) * (int(self.beatmap[i+1])-int(self.beatmap[i]))) : int(self.beatmap[i])+int(float(shift) * (int(self.beatmap[i+1])-int(self.beatmap[i])))+int(l)]+=audio2
-            except (IndexError, ValueError): pass
-        self._update()
-
-    def hitsample(self, audio2=None):
-        self._printlog(f'hitsample; ')
-        from . import generate
-        if audio2 is None:audio2=generate.saw(0.05, 1000, self.samplerate)
-        try: l=len(audio2[0])
-        except (TypeError, IndexError): 
-            l=len(audio2)
-            audio2=numpy.vstack((audio2,audio2))
-        #print(self.audio)
-        self.audio=numpy.array(self.audio).copy()
-        #print(self.audio)
-        for i in range(len(self.hitmap)):
-            try: 
-                #print('before', self.audio[:,int(self.hitmap[i])])
-                self.audio[:,int(self.hitmap[i]) : int(self.hitmap[i]+l)]+=audio2
-                #print('after ', self.audio[:,int(self.hitmap[i])])
-                #print(self.hitmap[i])
-            except (IndexError, ValueError): pass
-        self._update()
-
-    def sidechain(self, audio2, shift=0, smoothing=40):
-        self._printlog(f'sidechain; ')
-        try: l=len(audio2[0])
-        except (TypeError, IndexError): 
-            l=len(audio2)
-            audio2=numpy.vstack((audio2,audio2))
-        for i in range(len(self.beatmap)):
-            try: self.audio[:,int(self.beatmap[i])-smoothing + int(float(shift) * (int(self.beatmap[i+1])-int(self.beatmap[i]))) : int(self.beatmap[i])-smoothing+int(float(shift) * (int(self.beatmap[i+1])-int(self.beatmap[i])))+int(l)]*=audio2
-            except (IndexError, ValueError): break
-        self._update()
-
-    def quick_beatswap(self, output:str='', pattern:str=None, scale:float=1, shift:float=0, start:float=0, end:float=None, autotrim:bool=True, autoscale:bool=False, autoinsert:bool=False, suffix:str=' (beatswap)', lib:str='madmom.BeatDetectionProcessor', log = True):
-        """Generates beatmap if it isn't generated, applies beatswapping to the song and writes the processed song it next to the .py file. If you don't want to write the file, set output=None
-        
-        output: can be a relative or an absolute path to a folder or to a file. Filename will be created from the original filename + a suffix to avoid overwriting. If path already contains a filename which ends with audio file extension, such as .mp3, that filename will be used.
-        
-        pattern: the beatswapping pattern.
-        
-        scale: scales the beatmap, for example if generated beatmap is two times faster than the song you can slow it down by putting 0.5.
-        
-        shift: shifts the beatmap by this amount of unscaled beats
-        
-        start: position in seconds, beats before the position will not be manipulated
-        
-        end: position in seconds, same. Set to None by default.
-        
-        autotrim: trims silence in the beginning for better beat detection, True by default
-        
-        autoscale: scales beats so that they are between 10000 and 20000 samples long. Useful when you are processing a lot of files with similar BPMs, False by default.
-        
-        autoinsert: uses distance between beats and inserts beats at the beginning at that distance if possible. Set to False by default, sometimes it can fix shifted beatmaps and sometimes can add unwanted shift.
-        
-        suffix: suffix that will be appended to the filename
-        
-        lib: beat detection library"""
-        if log is False and self.log is True: 
-            self.log = False
-            self.beatmap.log=False
-            log_disabled = True
-        else: log_disabled = False
-        self._printlog('___')
-        scale = _safer_eval(scale)
-        shift = _safer_eval(shift)
-        if self.bm is None: self.beatmap.generate(lib=lib)
-        if autotrim is True: self.autotrim()
-        save=self.beatmap.beatmap.copy()
-        if autoscale is True: self.beatmap.autoscale()
-        if shift!=0: self.beatmap.shift(shift)
-        if scale!=1: self.beatmap.scale(scale)
-        if autoinsert is True: self.beatmap.autoinsert()
-        if start!=0 or end is not None: self.beatmap.cut(start, end)
-        self._printlog(f'pattern = {pattern}')
-        if 'test' in pattern.lower():
-            self.audio*=0.7
-            self.beatmap.beatmap=save.copy()
-            if autoinsert is True: self.beatmap.autoinsert()
-            if start!=0 or end is not None: self.beatmap.cut(start, end)
-            audio2, samplerate2=open_audio('samples/cowbell.flac')
-            song.quick_beatsample(self, output=None, audio2=list(i[::3] for i in audio2), scale=8*scale, shift=0+shift, log=log)
-            song.quick_beatsample(self, output=None, audio2=list(i[::2] for i in audio2), scale=8*scale, shift=1*scale+shift, log=log)
-            song.quick_beatsample(self, output=None, audio2=audio2, scale=8*scale, shift=2*scale+shift, log=log)
-            song.quick_beatsample(self, output=None, audio2=numpy.repeat(audio2,2,axis=1), scale=8*scale, shift=3*scale+shift, log=log)
-            song.quick_beatsample(self, output=None, audio2=numpy.repeat(audio2,3,axis=1), scale=8*scale, shift=4*scale+shift, log=log)
-            song.quick_beatsample(self, output=None, audio2=numpy.repeat(audio2,2,axis=1), scale=8*scale, shift=5*scale+shift, log=log)
-            song.quick_beatsample(self, output=None, audio2=audio2, scale=8*scale, shift=6*scale+shift, log=log)
-            song.quick_beatsample(self, output=None, audio2=list(i[::2] for i in audio2), scale=8*scale, shift=7*scale+shift, log=log)
-
-        else: self.beatswap(pattern)
-
-        if output is not None:
-            if not (output.lower().endswith('.mp3') or output.lower().endswith('.wav') or output.lower().endswith('.flac') or output.lower().endswith('.ogg') or 
-            output.lower().endswith('.aac') or output.lower().endswith('.ac3') or output.lower().endswith('.aiff')  or output.lower().endswith('.wma')):
-                output=output+'.'.join(''.join(self.path.split('/')[-1]).split('.')[:-1])+suffix+'.mp3'
-            self.write(output)
-
-        self.beatmap.beatmap=save.copy()
-        if log_disabled is True: 
-            self.log = True
-            self.beatmap.log=True
+                    # Separator is `^` - uses first beat length and multiplies beats, used for sidechain
+                    elif operators[num] == c_join[4]:
+                        length = len(beat[0])
+                        prev_length = len(result[-1][0])
+                        if length > prev_length: 
+                            result[-1] *= beat[:,:prev_length]
+                        else:
+                            result[-1][:,:length] *= beat
 
 
-    def quick_sidechain(self, output:str='', audio2:numpy.array=None, scale:float=1, shift:float=0, start:float=0, end:float=None, autotrim:bool=True, autoscale:bool=False, autoinsert:bool=False, filename2:str=None, suffix:str=' (sidechain)', lib:str='madmom.BeatDetectionProcessor', log=True):
-        """Generates beatmap if it isn't generated, applies fake sidechain on each beat to the song and writes the processed song it next to the .py file. If you don't want to write the file, set output=None
-        
-        output: can be a relative or an absolute path to a folder or to a file. Filename will be created from the original filename + a suffix to avoid overwriting. If path already contains a filename which ends with audio file extension, such as .mp3, that filename will be used.
-        
-        audio2: sidechain impulse, basically a curve that the volume will be multiplied by. By default one will be generated with generate_sidechain()
-        
-        scale: scales the beatmap, for example if generated beatmap is two times faster than the song you can slow it down by putting 0.5.
-        
-        shift: shifts the beatmap by this amount of unscaled beats
-        
-        start: position in seconds, beats before the position will not be manipulated
-        
-        end: position in seconds, same. Set to None by default.
-        
-        autotrim: trims silence in the beginning for better beat detection, True by default
-        
-        autoscale: scales beats so that they are between 10000 and 20000 samples long. Useful when you are processing a lot of files with similar BPMs, False by default.
-        
-        autoinsert: uses distance between beats and inserts beats at the beginning at that distance if possible. Set to False by default, sometimes it can fix shifted beatmaps and sometimes can add unwanted shift.
-        
-        filename2: loads sidechain impulse from the file if audio2 if not specified
+                    # Separator is `$` - always use first beat length, additionally sidechains first beat by second
+                    elif operators[num] == c_join[5]:
+                        from . import effects
+                        length = len(beat[0])
+                        prev_length = len(result[-1][0])
+                        if length > prev_length: 
+                            result[-1] *= effects.to_sidechain(beat[:,:prev_length])
+                            result[-1] += beat[:,:prev_length]
+                        else:
+                            result[-1][:,:length] *= effects.to_sidechain(beat)
+                            result[-1][:,:length] += beat
 
-        suffix: suffix that will be appended to the filename
-        
-        lib: beat detection library"""
-        if log is False and self.log is True: 
-            self.log = False
-            log_disabled = True
-        else: log_disabled = False
-        self._printlog('___')
-        scale = _safer_eval(scale)
-        shift = _safer_eval(shift)
-        if filename2 is None and audio2 is None:
-            from . import generate
-            audio2=generate.sidechain()
-
-        if audio2 is None:
-            audio2, samplerate2=open_audio(filename2)
-
-        if self.bm is None: self.beatmap.generate(lib=lib)
-        if autotrim is True: self.autotrim()
-        save=self.beatmap.beatmap.copy()
-        if autoscale is True: self.beatmap.autoscale()
-        if shift!=0: self.beatmap.shift(shift)
-        if scale!=1: self.beatmap.scale(scale)
-        if autoinsert is True: self.beatmap.autoinsert()
-        if start!=0 or end is not None: self.beatmap.cut(start, end)
-        self.sidechain(audio2)
-
-        if output is not None:
-            if not (output.lower().endswith('.mp3') or output.lower().endswith('.wav') or output.lower().endswith('.flac') or output.lower().endswith('.ogg') or 
-            output.lower().endswith('.aac') or output.lower().endswith('.ac3') or output.lower().endswith('.aiff')  or output.lower().endswith('.wma')):
-                output=output+'.'.join(''.join(self.path.split('/')[-1]).split('.')[:-1])+suffix+'.mp3'
-            self.write(output)
-        
-        self.beatmap.beatmap=save.copy()
-        if log_disabled is True: self.log = True
-
-    def quick_beatsample(self, output:str='', filename2:str=None, scale:float=1, shift:float=0, start:float=0, end:float=None, autotrim:bool=True, autoscale:bool=False, autoinsert:bool=False, audio2:numpy.array=None, suffix:str=' (BeatSample)', lib:str='madmom.BeatDetectionProcessor', log=True):
-        """Generates beatmap if it isn't generated, adds chosen sample to each beat of the song and writes the processed song it next to the .py file. If you don't want to write the file, set output=None
-        
-        output: can be a relative or an absolute path to a folder or to a file. Filename will be created from the original filename + a suffix to avoid overwriting. If path already contains a filename which ends with audio file extension, such as .mp3, that filename will be used.
-        
-        filename2: path to the sample.
-        
-        scale: scales the beatmap, for example if generated beatmap is two times faster than the song you can slow it down by putting 0.5.
-        
-        shift: shifts the beatmap by this amount of unscaled beats
-        
-        start: position in seconds, beats before the position will not be manipulated
-        
-        end: position in seconds, same. Set to None by default.
-        
-        autotrim: trims silence in the beginning for better beat detection, True by default
-        
-        autoscale: scales beats so that they are between 10000 and 20000 samples long. Useful when you are processing a lot of files with similar BPMs, False by default.
-        
-        autoinsert: uses distance between beats and inserts beats at the beginning at that distance if possible. Set to False by default, sometimes it can fix shifted beatmaps and sometimes can add unwanted shift.
-        
-        suffix: suffix that will be appended to the filename
-        
-        lib: beat detection library"""
-        if log is False and self.log is True: 
-            self.log = False
-            log_disabled = True
-        else: log_disabled = False
-        self._printlog('___')
-        scale = _safer_eval(scale)
-        shift = _safer_eval(shift)
-        if filename2 is None and audio2 is None:
-            from tkinter.filedialog import askopenfilename
-            filename2 = askopenfilename(title='select sidechain impulse', filetypes=[("mp3", ".mp3"),("wav", ".wav"),("flac", ".flac"),("ogg", ".ogg"),("wma", ".wma")])
-
-        if audio2 is None:
-            audio2, samplerate2=open_audio(filename2)
-
-        if self.bm is None: self.beatmap.generate(lib=lib)
-        if autotrim is True: self.autotrim()
-        save=self.beatmap.beatmap.copy()
-        if autoscale is True: self.beatmap.autoscale()
-        if shift!=0: self.beatmap.shift(shift)
-        if scale!=1: self.beatmap.scale(scale)
-        if autoinsert is True: self.beatmap.autoinsert()
-        if start!=0 or end is not None: self.beatmap.cut(start, end)
-        self.beatsample(audio2)
-
-        if output is not None:
-            if not (output.lower().endswith('.mp3') or output.lower().endswith('.wav') or output.lower().endswith('.flac') or output.lower().endswith('.ogg') or 
-            output.lower().endswith('.aac') or output.lower().endswith('.ac3') or output.lower().endswith('.aiff')  or output.lower().endswith('.wma')):
-                output=output+'.'.join(''.join(self.path.split('/')[-1]).split('.')[:-1])+suffix+'.mp3'
-            self.write(output)
-        self.beatmap.beatmap=save.copy()
-        if log_disabled is True: self.log = True
-
-    def spectogram_to_audio(self):
-        self.audio = self.spectogram.toaudio()
-
-    def beat_image_to_audio(self):
-        self.audio = self.beat_image.toaudio()
+                    # Separator is `}` - always use first beat length
+                    elif operators[num] == c_join[6]:
+                        length = len(beat[0])
+                        prev_length = len(result[-1][0])
+                        if length > prev_length: 
+                            result[-1] += beat[:,:prev_length]
+                        else:
+                            result[-1][:,:length] += beat
 
 
-def fix_beatmap(filename, lib='madmom.BeatDetectionProcessor', scale=1, shift=0):
-    if scale==1 and shift==0:
-        print('scale = 1, shift = 0: no changes have been made.')
-        return
-    track=song(filename)
-    audio_id=hex(len(track.audio[0]))
-    cacheDir="SavedBeatmaps/" + ''.join(track.filename.split('/')[-1]) + "_"+lib+"_"+audio_id+'.txt'
-    import os
-    if not os.path.exists(cacheDir):
-        print(f"beatmap isn't generated: {filename}")
-        return
-    track.beatmap.generate(lib=lib)
-    track.beatmap.shift(shift)
-    track.beatmap.scale(scale)
-    if not os.path.exists('SavedBeatmaps'):
-        os.mkdir('SavedBeatmaps')
-    a=input(f'Are you sure you want to overwrite {cacheDir} using scale = {scale}; shift = {shift}? ("y" to continue): ')
-    if 'n' in a.lower() or not 'y' in a.lower():
-        print('Operation canceled.') 
-        return
-    else: 
-        track.beatmap._toarray()
-        numpy.savetxt(cacheDir, track.bm.astype(int), fmt='%d')
-        print('Beatmap overwritten.')
+        # smoothing
+        for i in range(len(result)-1):
+            current1 = result[i][0][-2]
+            current2 = result[i][0][-1]
+            following1 = result[i+1][0][0]
+            following2 = result[i+1][0][1]
+            num = (abs(following1 - (current2 + (current2 - current1))) + abs(current2 - (following1 + (following1 - following2))))/2
+            if num > 0.0: 
+                num = int(smoothing*num)
+                if num>3:
+                    try:
+                        line = scipy.interpolate.CubicSpline([0, num+1], [0, following1], bc_type='clamped')(np.arange(0, num, 1))
+                        #print(line)
+                        line2 = np.linspace(1, 0, num)**0.5
+                        result[i][0][-num:] *= line2
+                        result[i][1][-num:] *= line2
+                        result[i][0][-num:] += line
+                        result[i][1][-num:] += line
+                    except (IndexError, ValueError): pass
 
-def delete_beatmap(filename, lib='madmom.BeatDetectionProcessor'):
-    track=song(filename)
-    audio_id=hex(len(track.audio[0]))
-    import os
-    if not os.path.exists('SavedBeatmaps'):
-        os.mkdir('SavedBeatmaps')
-    cacheDir="SavedBeatmaps/" + ''.join(track.filename.split('/')[-1]) + "_"+lib+"_"+audio_id+'.txt'
-    if not os.path.exists(cacheDir):
-        print(f"beatmap doesn't exist: {filename}")
-        return
-    a=input(f'Are you sure you want to delete {cacheDir}? ("y" to continue): ')
-    if 'n' in a.lower() or not 'y' in a.lower():
-        print('Operation canceled.') 
-        return
-    else: 
-        os.remove(cacheDir)
-        print('Beatmap deleted.')
+        self.beatmap = beatmap_default.copy()
+        # Beats are conjoined into a song
+        import functools
+        import operator
+        # Makes a [l, r, l, r, ...] list of beats (left and right channels)
+        result = functools.reduce(operator.iconcat, result, [])
+
+        # Every first beat is conjoined into left channel, every second beat is conjoined into right channel
+        if return_audio is False: self.audio = np.array([functools.reduce(operator.iconcat, result[::2], []), functools.reduce(operator.iconcat, result[1:][::2], [])])
+        else: return np.array([functools.reduce(operator.iconcat, result[::2], []), functools.reduce(operator.iconcat, result[1:][::2], [])])
+
+    def normalize_beats(self):
+        if self.normalized is not None: 
+            if ',' in self.normalized: 
+                self.beatswap(pattern = self.normalized)
+            else:
+                from . import presets
+                self.beatswap(*presets.get(self.normalized))
+
+    def image_generate(self, scale=1, shift=0, mode = 'median'):
+        if self.beatmap is None: self.beatmap_generate()
+        beatmap_default = self.beatmap.copy()
+        self.beatmap_shift(shift)
+        self.beatmap_scale(scale)
+        from .image import generate as image_generate
+        self.image = image_generate(song = self, mode = mode, log = self.log)
+        self.beatmap = beatmap_default.copy()
+
+    def image_write(self, output='', mode = 'color', max_size = 4096, ext = 'png', rotate=True, suffix = ''):
+        from .image import write as image_write
+        output = io._outputfilename(output, self.path, ext=ext, suffix = suffix)
+        image_write(self.image, output = output, mode = mode, max_size = max_size , rotate = rotate)
+        return output
 
 
-def _tosong(audio=None, bmap=None, samplerate=None, log=True):
-    from .wrapper import _song_copy
-    if isinstance(audio, str) or audio is None: audio = song(audio, bmap=bmap, log = log)
-    elif isinstance(audio, list) or isinstance(audio, numpy.ndarray) or isinstance(audio, tuple):
-        assert samplerate is not None, "If audio is an array, samplerate must be provided"
-        if len(audio)>16 and isinstance(audio[0], list) or isinstance(audio[0], numpy.ndarray) or isinstance(audio[0], tuple):
-            audio = numpy.asarray(audio).T
-        audio = song(audio=audio, samplerate=samplerate, bmap=bmap, log = log)
-    elif isinstance(audio, song): 
-        audio = _song_copy(audio)
-        audio.log, audio.beatmap.log, audio.beat_image.log = log, log, log
-    else: assert False, f"Audio should be either a path to a file, a list/array/tuple, a beat_manipulator.song object, or None for a pick file dialogue, but it is {type(audio)}"
-    return audio
 
-def beatswap(pattern: str, audio = None, scale: float = 1, shift: float = 0, output='', samplerate = None, bmap = None, log = True, suffix=' (beatswap)'):
-    audio = _tosong(audio=audio, bmap=bmap, samplerate=samplerate, log=log)
-    output = _outputfilename(output=output, filename=audio.path, suffix=suffix)
-    audio.quick_beatswap(pattern = pattern, scale=scale, shift=shift, output=output)
-    return audio.path
+def beatswap(audio = None, pattern = 'test', scale = 1, shift = 0, length = None, sr = None, output = '', log = True, suffix = ' (beatswap)', copy = True):
+    if not isinstance(audio, song): audio = song(audio = audio, sr = sr, log = log)
+    elif copy is True: 
+        beatmap = audio.beatmap
+        path = audio.path
+        audio = song(audio = audio.audio, sr = audio.sr)
+        audio.beatmap = beatmap
+        audio.path = path
+    audio.beatswap(pattern = pattern, scale = scale, shift = shift, length = length)
+    if output is not None: 
+        return audio.write(output = output, suffix = suffix)
+    else: return audio
 
-def generate_beat_image(audio = None, scale: float = 1, shift: float = 0, output='', samplerate = None, bmap = None, log = True, ext='png', maximum=4096):
-    audio = _tosong(audio=audio, bmap=bmap, samplerate=samplerate, log=log)
-    output = _outputfilename(output=output, filename=audio.path, ext=ext, suffix = '')
-    audio.beatmap.generate()
-    audio.beatmap.scale(scale)
-    audio.beatmap.shift(shift)
-    audio.beat_image.generate()
-    audio.beat_image.write(output=output, maximum = maximum)
-    return output
-
-def generate_osu_map(audio = None, samplerate = None, log = True, difficulties = [0.2, 0.1, 0.08, 0.06, 0.04, 0.02, 0.01, 0.005]):
-    audio = _tosong(audio=audio, samplerate=samplerate, log=log)
-    audio.hitmap.generate()
-    audio.generate_osu_beatmap(difficulties=difficulties)
-    return audio.path
+def image(audio, scale = 1, shift = 0, sr = None, output = '', log = True, suffix = '', max_size = 4096):
+    if not isinstance(audio, song): audio = song(audio = audio, sr = sr, log = log)
+    audio.image_generate(scale = scale, shift = shift)
+    if output is not None: 
+        return audio.image_write(output = output, max_size=max_size, suffix=suffix)
+    else: return audio.image

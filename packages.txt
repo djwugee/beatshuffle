@@ -1,3 +1,0 @@
-ffmpeg
-cython
-python3-opencv
