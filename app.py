@@ -34,7 +34,7 @@ def BeatSwap(audiofile, pattern: str = 'test', scale:float = 1, shift:float = 0,
             song.audio = song.audio[:,:song.sr*1800]
     except Exception as e: print(f'Reducing audio size failed, why? {e}')
     lib = 'madmom.BeatDetectionProcessor' if variableBPM is False else 'madmom.BeatTrackingProcessor'
-    song.path = song.path.split('.')[:-2][:-8]+'.'+song.path.split('.')[-1]
+    song.path = '.'.join(song.path.split('.')[:-1])[:-8]+'.'+song.path.split('.')[-1]
     print(f'path: {song.path}')
     print('Generating beatmap...')
     song.beatmap_generate(lib=lib, caching=caching)
@@ -96,7 +96,7 @@ patterns are sequences of **beats**, separated by **commas** or other separators
 - `1, 2s0.5` - 2nd beat will be played at 0.5x speed
 - `1, 2d10` - 2nd beat will have 8-bit effect (downsampled)
 
-You can do much more with the syntax - shuffle/randomize beats, use samples, mix two songs, etc. Syntax is described in detail at https://huggingface.co/spaces/dpe1/BeatManipulator
+You can do much more with the syntax - shuffle/randomize beats, use samples, mix two songs, etc. Syntax is described in detail at https://github.com/stunlocked1/beat_manipulator
 ### scale
 `scale = 0.5` will insert a new beat position between every existing beat position in the beatmap. That allows you to make patterns on smaller intervals.
 
