@@ -5,7 +5,7 @@ import cv2
 
 def BeatSwap(audiofile, pattern: str = 'test', scale:float = 1, shift:float = 0, caching:bool = True, variableBPM:bool = False):
     print()
-    print(f'path = {audiofile}, pattern = "{pattern}", scale = {scale}, shift = {shift}, caching = {caching}, variable BPM = {variableBPM}', end=',  ')
+    print(f'path = {audiofile}, pattern = "{pattern}", scale = {scale}, shift = {shift}, caching = {caching}, variable BPM = {variableBPM}')
     if pattern == '' or pattern is None: pattern = 'test'
     if caching is not False: caching == True
     if variableBPM is not True: variableBPM == False
@@ -16,7 +16,8 @@ def BeatSwap(audiofile, pattern: str = 'test', scale:float = 1, shift:float = 0,
         shift=bm.utils._safer_eval(shift)
     except: shift = 0
     if scale <0: scale = -scale
-    if scale < 0.01: scale = 0.01
+    if scale < 0.02: scale = 0.02
+    print('Loading auidofile...')
     if audiofile is not None:
         try:
             song=bm.song(audio=audiofile,log=False)
@@ -27,16 +28,19 @@ def BeatSwap(audiofile, pattern: str = 'test', scale:float = 1, shift:float = 0,
         print(f'Audiofile is {audiofile}')
         return
     try:
-        print(f'scale = {scale}, shift = {shift}, length = {len(song.audio[0])/song.sr}')
+        print(f'Scale = {scale}, shift = {shift}, length = {len(song.audio[0])/song.sr}')
         if len(song.audio[0]) > (song.sr*1800):
             song.audio = np.array(song.audio, copy=False)
             song.audio = song.audio[:,:song.sr*1800]
     except Exception as e: print(f'Reducing audio size failed, why? {e}')
     lib = 'madmom.BeatDetectionProcessor' if variableBPM is False else 'madmom.BeatTrackingProcessor'
-    song.path = song.path.split('.')[-2][:-8]+'.'+song.path.split('.')[-1]
+    song.path = song.path.split('.')[:-2][:-8]+'.'+song.path.split('.')[-1]
+    print(f'path: {song.path}')
+    print('Generating beatmap...')
     song.beatmap_generate(lib=lib, caching=caching)
     song.beatmap_shift(shift)
     song.beatmap_scale(scale)
+    print('Generating image...')
     try:
         song.image_generate()
         image = bm.image.bw_to_colored(song.image)
@@ -47,6 +51,7 @@ def BeatSwap(audiofile, pattern: str = 'test', scale:float = 1, shift:float = 0,
     except Exception as e: 
         print(f'Image generation failed: {e}')
         image = np.asarray([[0.5,-0.5],[-0.5,0.5]])
+    print('Beatswapping...')
     song.beatswap(pattern=pattern, scale=1, shift=0)
     song.audio = (np.clip(np.asarray(song.audio), -1, 1) * 32766).astype(np.int16).T
     #song.write_audio(output=bm.outputfilename('',song.filename, suffix=' (beatswap)'))
