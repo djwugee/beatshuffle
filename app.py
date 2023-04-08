@@ -71,33 +71,36 @@ Colab version - https://colab.research.google.com/drive/1gEsZCCh2zMKqLmaGH5BPPLr
 ### Basic usage
 Upload your audio, enter the beat swapping pattern, change scale and shift if needed, and run it.
 
-#### pattern syntax
-patterns are sequences of **beats**, separated by commas or other separators. You can use spaces freely in patterns to make them look prettier.
-* `1, 3, 2, 4` - swap 2nd and 3rd beat every four beats. Repeats every four beats because `4` is the biggest number in it.
-* `1, 3, 4` - skip 2nd beat every four beats
-* `1, 2, 3, 4!` - skip 4th beat every four beats. `!` skips the beat.
+### pattern syntax
+patterns are sequences of **beats**, separated by **commas** or other separators. You can use spaces freely in patterns to make them look prettier.
+- `1, 3, 2, 4` - swap 2nd and 3rd beat every four beats. Repeats every four beats because `4` is the biggest number in it.
+- `1, 3, 4` - skip 2nd beat every four beats
+- `1, 2, 3, 4!` - skip 4th beat every four beats. `!` skips the beat.
 
-* `1>0.5` - plays first half of 1st beat
-* `1<0.5` - plays last half of 1st beat
-* `1 > 1/3, 2, 3, 4` - every four beats, plays first third of the first beat - you can use math expressions anywhere in your pattern.
-* also instead of slicing beats you can use a smaller `scale` parameter to make more precise beat edits 
+**slicing:**
+- `1>0.5` - plays first half of 1st beat
+- `1<0.5` - plays last half of 1st beat
+- `1 > 1/3, 2, 3, 4` - every four beats, plays first third of the first beat - you can use math expressions anywhere in your pattern.
+- also instead of slicing beats you can use a smaller `scale` parameter to make more precise beat edits 
 
-* `1; 2, 3, 4` - every four beats, play 1st and 2nd beats at the same time.
+**merging beats:**
+- `1; 2, 3, 4` - every four beats, play 1st and 2nd beats at the same time.
 
-* `1, 2r` - 2nd beat will be reversed
-* `1, 2s0.5` - 2nd beat will be played at 0.5x speed
-* `1, 2d10` - 2nd beat will have 8-bit effect (downsampled)
+**effects:**
+- `1, 2r` - 2nd beat will be reversed
+- `1, 2s0.5` - 2nd beat will be played at 0.5x speed
+- `1, 2d10` - 2nd beat will have 8-bit effect (downsampled)
 
 You can do much more with the syntax - shuffle/randomize beats, use samples, mix two songs, etc. Syntax is described in detail at https://huggingface.co/spaces/dpe1/BeatManipulator
-#### scale
+### scale
 `scale = 0.5` will insert a new beat position between every existing beat position in the beatmap. That allows you to make patterns on smaller intervals.
 
 `scale = 2`, on the other hand, will merge every two beat positions in the beatmap. Useful, for example, when beat map detection puts sees BPM as two times faster than it actually is, and puts beats in between every actual beat.
-#### shift
+### shift
 Shifts the beatmap, in beats. For example, if you want to remove 4th beat every four beats, you can do it by writing `1, 2, 3, 4!`. However sometimes it doesn't properly detect which beat is first, and for example remove 2nd beat every 4 beats instead. In that case, if you want 4th beat, use `shift = 2`. Also sometimes beats are detected right in between actual beats, so shift = 0.5 or -0.5 will fix it.
-#### creating images
+### creating images
 You can create cool images based on beat positions. Each song produces its own unique image. This gradio app creates a 2048x2048 image from each song.
-#### presets
+### presets
 A bunch of example patterns: https://github.com/stunlocked1/beat_manipulator/blob/main/beat_manipulator/presets.yaml
 
 Those are supposed to be used on normalized beat maps, where kick + snare is two beats, so make sure to adjust beatmaps using `scale` and `shift`.
