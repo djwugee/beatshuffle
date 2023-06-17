@@ -10,7 +10,7 @@ class song:
         if audio is None: 
             from tkinter import filedialog
             audio = filedialog.askopenfilename()
-        
+
         if isinstance(audio, song): self.path = audio.path
         self.audio, self.sr = io._load(audio=audio, sr=sr)
 
@@ -18,7 +18,7 @@ class song:
         if isinstance(audio, str):
             self.path = audio
         elif not isinstance(audio, song):
-            self.path = 'unknown_' + str(hex(int(np.sum(self.audio)*(10**18))))
+            self.path = f'unknown_{hex(int(np.sum(self.audio) * 10**18))}'
 
         self.log = log
         self.beatmap = None
@@ -27,12 +27,10 @@ class song:
     def _slice(self, a):
         if a is None: return None
         elif isinstance(a, float):
-            if (a_dec:=a%1) != 0:
-                a_int = int(int(a)//1)
-                start = self.beatmap[a_int]
-                return int(start + a_dec * (self.beatmap[a_int+1] - start))
-            else:
-                return self.beatmap[int(a)]
+            if (a_dec := a % 1) == 0: return self.beatmap[int(a)]
+            a_int = int(int(a)//1)
+            start = self.beatmap[a_int]
+            return int(start + a_dec * (self.beatmap[a_int+1] - start))
         elif isinstance(a, int): return self.beatmap[a]
         else: raise TypeError(f'slice indices must be int, float, or None, not {type(a)}. Indice is {a}')
 
@@ -70,8 +68,8 @@ class song:
                 song_copy.beatmap = self.beatmap.copy()
                 song_copy.beatmap = np.insert(song_copy.beatmap, 0, 0)
                 result = song_copy.beatswap(pattern = pattern, return_audio = True)
-                if isinstance(self.audio, np.ndarray): return result
-                else: return result.tolist()
+                return result if isinstance(self.audio, np.ndarray) else result.tolist()
+                
 
         elif isinstance(s, float):
             start = self._slice(s-1)
@@ -158,7 +156,7 @@ class song:
         beatmap.save_settings(audio = self.audio, filename = self.path, scale = scale, shift = shift,adjust = adjust, normalized = normalized, log=self.log, overwrite=overwrite, lib = self.lib)
 
     def beatswap(self, pattern = '1;"cowbell"s3v2, 2;"cowbell"s2, 3;"cowbell", 4;"cowbell"s0.5, 5;"cowbell"s0.25, 6;"cowbell"s0.4, 7;"cowbell"s0.8, 8;"cowbell"s1.6', 
-        scale:float = 1, shift:float = 0, length = None, samples:dict = BM_SAMPLES, effects:dict = BM_EFFECTS, metrics:dict = BM_METRICS, smoothing: int = 100, adjust=500, return_audio = False, normalize = False):
+        scale:float = 1, shift:float = 0, length = None, samples:dict = BM_SAMPLES, effects:dict = BM_EFFECTS, metrics:dict = BM_METRICS, smoothing: int = 100, adjust=500, return_audio = False, normalize = False, limit_beats=10000, limit_length = 52920000):
         
         if normalize is True:
             self.normalize_beats()
@@ -245,11 +243,14 @@ class song:
         #for i in pattern: print(i)
 
 
-            
+        stop = False
+        total_length = 0
         
         # loop over pattern until it reaches the last beat
         while n*pattern_length <= len(self.beatmap):
             n+=1
+
+            if stop is True: break
 
             # Every time pattern loops, shuffles beats with #
             if len(shuffle_beats) > 0:
@@ -257,6 +258,12 @@ class song:
 
             # Loops over all beats in pattern
             for num, b in enumerate(pattern):
+
+                # check if beats limit has been reached
+                if limit_beats is not None and len(result) >= limit_beats:
+                    stop = True
+                    break
+
                 if len(b) == 4: beat = b[3] # Sample has length 4
                 else: beat = b[0] # Else take the beat
 
@@ -370,7 +377,15 @@ class song:
                         else:
                             beat = e(beat, v)
 
+                # clip beat to -1, 1
                 beat = np.clip(beat, -1, 1)
+
+                # checks if length limit has been reached
+                if limit_length is not None:
+                    total_length += len(beat[0])
+                    if total_length>= limit_length: 
+                        stop = True
+                        break
                 
                 # Adds the processed beat to list of beats.
                 # Separator is `,`
