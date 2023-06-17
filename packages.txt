@@ -1,3 +1,4 @@
 ffmpeg
 cython
+cython3
 python3-opencv
