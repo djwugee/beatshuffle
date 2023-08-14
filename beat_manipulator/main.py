@@ -206,7 +206,9 @@ class song:
             import random,math
             pattern = ''
             rand_length=0
+            limit = 100
             while True:
+                limit -= 1
                 rand_num = int(math.floor(random.triangular(1, 16, rand_length-1)))
                 if random.uniform(0, rand_num)>rand_length: rand_num = rand_length+1
                 rand_slice = random.choices(['','>0.5','>0.25', '<0.5', '<0.25', '<1/3', '<2/3', '>1/3', '>2/3', '<0.75', '>0.75', 
@@ -223,10 +225,12 @@ class song:
                     if random.uniform(rand_num,16)>14: break
                 else: 
                     if random.uniform(rand_num,16)>15.5: break
+                if limit <= 0: break
             pattern_length = 4
             if rand_length > 6: pattern_length = 8
             if rand_length > 12: pattern_length = 16
             if rand_length > 24: pattern_length = 32
+
 
 
         
