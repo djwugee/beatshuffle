@@ -9,7 +9,7 @@ def BeatSwap(audiofile, pattern: str = 'test', scale:float = 1, shift:float = 0,
     if pattern == '' or pattern is None: pattern = 'test'
     if caching is not False: caching == True
     if variableBPM is not True: variableBPM == False
-    if 'random' in pattern.lower(): pattern = random
+    if 'random' in pattern.lower(): pattern = 'random'
     try:
         scale=bm.utils._safer_eval(scale)
     except: scale = 1
