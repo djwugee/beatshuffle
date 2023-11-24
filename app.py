@@ -1,3 +1,5 @@
+os.system("pip uninstall -y gradio")
+os.system("pip install gradio==2.6.4")
 import gradio as gr, numpy as np
 from gradio.components import Audio, Textbox, Checkbox, Image
 import beat_manipulator as bm
