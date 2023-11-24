@@ -1,3 +1,4 @@
+pip
 cython
 mido
 numpy
@@ -9,4 +10,5 @@ ffmpeg-python
 librosa
 pedalboard
 opencv-python
+gradio
 git+https://github.com/CPJKU/madmom
