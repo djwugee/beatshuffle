@@ -1,4 +1,5 @@
 pip
+httpx==0.24.1
 cython
 mido
 numpy
