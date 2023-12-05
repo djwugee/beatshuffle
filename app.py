@@ -66,7 +66,7 @@ shiftbox = Textbox(value=0, label="Beatmap shift, in beats (applies before scali
 cachebox = Checkbox(value=True, label="Enable caching generated beatmaps for faster loading. Saves a file with beat positions and loads it when you open same audio again.")
 beatdetectionbox = Checkbox(value=False, label='Enable support for variable BPM, however this makes beat detection slightly less accurate')
 
-gr.Interface (fn=BeatSwap,inputs=[audiofile,patternbox,scalebox,shiftbox, cachebox, beatdetectionbox],outputs=[Audio(type='numpy'), Image(type='numpy')],theme="default",
+gr.Interface (fn=BeatSwap,inputs=[audiofile,patternbox,scalebox,shiftbox, cachebox, beatdetectionbox],outputs=[Audio(type='numpy', format="mp3"), Image(type='numpy', label="Beat-image")],theme="default",
 title = "Stunlocked's Beat Manipulator"
 ,description = """Remix music using AI-powered beat detection and advanced beat swapping. Make \"every other beat is missing\" remixes, or completely change beat of the song. 
 
