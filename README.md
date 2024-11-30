@@ -1,10 +1,23 @@
-# Flask Application
+# Beat Manipulator Flask Application
+
+## Project Structure
+```
+.
+├── api/
+│   └── index.py          # Vercel serverless function entry point
+├── app/
+│   ├── app.py           # Main Flask application
+│   ├── static/          # Static files (CSS, JS)
+│   └── templates/       # HTML templates
+├── vercel.json          # Vercel configuration
+└── requirements.txt     # Python dependencies
+```
 
 ## Local Development
 
 ### Installation
 
-To install the required dependencies, run:
+Install the required dependencies:
 
 ```bash
 pip install -r requirements.txt
@@ -32,26 +45,27 @@ npm install -g vercel
 vercel login
 ```
 
-### Deployment
+### Deployment Steps
 
-1. Deploy to Vercel:
+1. Initial deployment:
 ```bash
 vercel
 ```
 
-2. For production deployment:
+2. Production deployment:
 ```bash
 vercel --prod
 ```
 
-### Project Structure
+### Configuration Files
 
-The project is configured for Vercel deployment with:
-- `vercel.json` - Defines build and routing configuration
-- `requirements.txt` - Python dependencies
-- `app/app.py` - Main Flask application
+The project includes specific configuration for Vercel deployment:
+
+- `vercel.json`: Configures the build and routing
+- `api/index.py`: Serverless function entry point
+- `requirements.txt`: Python dependencies
 
 ### Notes
 - The application uses Python runtime on Vercel
-- All routes are automatically handled through the Flask application
 - Static files and templates are served from the `app` directory
+- All routes are handled through the Flask application in `api/index.py`
