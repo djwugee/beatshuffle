@@ -3,35 +3,38 @@
 ## Project Structure
 ```
 .
-├── api/
-│   └── index.py          # Vercel serverless function entry point
+├── index.py            # Main Flask application (Vercel entry point)
 ├── app/
-│   ├── app.py           # Main Flask application
-│   ├── static/          # Static files (CSS, JS)
-│   └── templates/       # HTML templates
-├── vercel.json          # Vercel configuration
-└── requirements.txt     # Python dependencies
+│   ├── static/        # Static files (CSS, JS)
+│   └── templates/     # HTML templates
+├── beat_manipulator/   # Beat manipulation logic
+├── vercel.json        # Vercel configuration
+└── requirements.txt   # Python dependencies
 ```
 
 ## Local Development
 
 ### Installation
 
-Install the required dependencies:
+1. Create a virtual environment (recommended):
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
 
+2. Install dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
 ### Run Locally
 
-To run the application locally:
-
+Start the Flask development server:
 ```bash
-python app/app.py
+python index.py
 ```
 
-## Deploying to Vercel
+## Vercel Deployment
 
 ### Prerequisites
 
@@ -47,25 +50,29 @@ vercel login
 
 ### Deployment Steps
 
-1. Initial deployment:
+1. Make sure your project structure matches the one described above:
+   - `index.py` in the root directory
+   - Static files in `app/static/`
+   - Templates in `app/templates/`
+
+2. Deploy to Vercel:
 ```bash
 vercel
 ```
 
-2. Production deployment:
+3. For production deployment:
 ```bash
 vercel --prod
 ```
 
-### Configuration Files
+### Important Files
 
-The project includes specific configuration for Vercel deployment:
-
-- `vercel.json`: Configures the build and routing
-- `api/index.py`: Serverless function entry point
-- `requirements.txt`: Python dependencies
+- `index.py`: Main Flask application and Vercel entry point
+- `vercel.json`: Configures build settings and routing
+- `requirements.txt`: Python package dependencies
 
 ### Notes
-- The application uses Python runtime on Vercel
+- The application uses the Python runtime on Vercel
 - Static files and templates are served from the `app` directory
-- All routes are handled through the Flask application in `api/index.py`
+- FFmpeg is required for audio processing
+- Temporary files are handled in-memory for Vercel's serverless environment
