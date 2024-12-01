@@ -3,13 +3,16 @@
 ## Project Structure
 ```
 .
-├── index.py            # Main Flask application (Vercel entry point)
-├── app/
-│   ├── static/        # Static files (CSS, JS)
-│   └── templates/     # HTML templates
-├── beat_manipulator/   # Beat manipulation logic
-├── vercel.json        # Vercel configuration
-└── requirements.txt   # Python dependencies
+├── api/
+│   └── app.py           # Main Flask application (Vercel serverless function)
+├── static/
+│   └── css/
+│       └── styles.css   # Application styles
+├── templates/
+│   └── index.html       # HTML template
+├── beat_manipulator/    # Beat manipulation logic
+├── vercel.json         # Vercel configuration
+└── requirements.txt    # Python dependencies
 ```
 
 ## Local Development
@@ -31,7 +34,7 @@ pip install -r requirements.txt
 
 Start the Flask development server:
 ```bash
-python index.py
+python api/app.py
 ```
 
 ## Vercel Deployment
@@ -50,10 +53,10 @@ vercel login
 
 ### Deployment Steps
 
-1. Make sure your project structure matches the one described above:
-   - `index.py` in the root directory
-   - Static files in `app/static/`
-   - Templates in `app/templates/`
+1. Ensure your project structure matches the above layout:
+   - Flask application in `api/app.py`
+   - Static files in `static/`
+   - Templates in `templates/`
 
 2. Deploy to Vercel:
 ```bash
@@ -67,12 +70,13 @@ vercel --prod
 
 ### Important Files
 
-- `index.py`: Main Flask application and Vercel entry point
-- `vercel.json`: Configures build settings and routing
+- `api/app.py`: Main Flask application (Vercel serverless function)
+- `vercel.json`: Configures build settings and routing for both static files and the Python application
 - `requirements.txt`: Python package dependencies
 
 ### Notes
-- The application uses the Python runtime on Vercel
-- Static files and templates are served from the `app` directory
+- The application uses Python runtime on Vercel
+- Static files are served directly by Vercel's CDN
+- Templates are served through the Flask application
 - FFmpeg is required for audio processing
 - Temporary files are handled in-memory for Vercel's serverless environment
