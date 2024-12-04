@@ -1,0 +1,24 @@
+version: 1
+services:
+  - type: web
+    name: nextjs-flask-app
+    env: node
+    buildCommand: |
+      cd app && npm install && npm run build
+    startCommand: |
+      npm start
+    plan:
+      - type: python
+        requirements: requirements.txt
+        startCommand: gunicorn api.app:app --bind 0.0.0.0:3000
+    routes:
+      - src: /
+        dest: api.app:app
+      - src: /api/*
+        dest: api.app:app
+      - src: /static/*
+        dest: app/static
+      - src: /pages/*
+        dest: app/pages
+      - src: /templates/*
+        dest: app/templates
