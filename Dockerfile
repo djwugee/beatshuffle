@@ -9,7 +9,6 @@ COPY requirements.txt .
 
 # Upgrade pip and install required dependencies
 RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt \
     && pip install --no-cache-dir cython flask Werkzeug numpy PyYAML soundfile librosa scipy ffmpeg-python \
     && pip install --no-cache-dir git+https://github.com/CPJKU/madmom.git
 
@@ -17,4 +16,4 @@ RUN pip install --no-cache-dir --upgrade pip \
 EXPOSE 3000
 
 # Command to run the application
-CMD ["python", "app/app.py"]
+CMD ["python3", "app/app.py"]
