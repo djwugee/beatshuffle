@@ -6,6 +6,8 @@ import beat_manipulator as bm
 import cv2
 import yaml
 
+const port = process.env.PORT || 4000;
+
 def load_presets():
     with open('beat_manipulator/presets.yaml', 'r') as f:
         presets = yaml.safe_load(f)
