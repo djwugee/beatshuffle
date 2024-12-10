@@ -5,7 +5,7 @@ FROM python:3.12.8 AS python
 WORKDIR /
 
 # Copy only the requirements.txt file
-COPY ./
+COPY . /
 
 # Upgrade pip and install required dependencies
 RUN pip install --no-cache-dir --upgrade pip \
