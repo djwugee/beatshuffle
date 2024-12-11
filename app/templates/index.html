@@ -77,58 +77,56 @@
         </div>
     </div>
 
- <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const form = document.getElementById('audioForm');
-        
-        form.addEventListener('submit', async function (event) {
-            event.preventDefault(); // Prevent the default form submission
+    <script>
+        document.getElementById('audioForm').onsubmit = async function(e) {
+            e.preventDefault();
             
-            const formData = new FormData(form);
+            const form = new FormData(this);
+            const outputSection = document.getElementById('output');
             const loading = document.getElementById('loading');
             const processingStep = loading.querySelector('.processing-step');
             const audioPlayer = document.getElementById('audio-player');
             const errorMessage = document.getElementById('error-message');
             const submitBtn = document.getElementById('submitBtn');
-
-            loading.classList.remove('hidden');
-            audioPlayer.classList.add('hidden');
-            errorMessage.classList.add('hidden');
+            
+            // Reset output section
+            loading.style.display = 'block';
+            audioPlayer.style.display = 'none';
+            errorMessage.style.display = 'none';
             submitBtn.disabled = true;
             submitBtn.textContent = 'Processing...';
-
+            
             try {
                 processingStep.textContent = 'Uploading audio file...';
                 const response = await fetch('/process', {
                     method: 'POST',
-                    body: formData
+                    body: form
                 });
 
                 const contentType = response.headers.get('content-type');
+                
                 if (contentType && contentType.includes('application/json')) {
+                    // Handle error response
                     const error = await response.json();
                     throw new Error(error.error || 'Failed to process audio');
                 } else {
+                    // Handle successful response (audio file)
                     processingStep.textContent = 'Processing complete! Loading audio...';
                     const blob = await response.blob();
                     const url = URL.createObjectURL(blob);
-
-                    audioPlayer.pause();
                     audioPlayer.src = url;
-                    audioPlayer.load();
-                    audioPlayer.classList.remove('hidden');
+                    audioPlayer.style.display = 'block';
                 }
             } catch (error) {
                 console.error('Error:', error);
                 errorMessage.textContent = error.message;
-                errorMessage.classList.remove('hidden');
+                errorMessage.style.display = 'block';
             } finally {
-                loading.classList.add('hidden');
+                loading.style.display = 'none';
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Process Audio';
             }
-        });
-    });
+        };
 
         // Update pattern field when preset changes
         document.getElementById('preset_name').addEventListener('change', function(e) {
