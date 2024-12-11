@@ -93,49 +93,40 @@
             loading.style.display = 'block';
             audioPlayer.style.display = 'none';
             errorMessage.style.display = 'none';
-           submitBtn.disabled = true;
-           submitBtn.textContent = 'Processing...';
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Processing...';
+            
+            try {
+                processingStep.textContent = 'Uploading audio file...';
+                const response = await fetch('/process', {
+                    method: 'POST',
+                    body: form
+                });
 
-try {
-    processingStep.textContent = 'Uploading audio file...';
-    const response = await fetch('/process', {
-        method: 'POST',
-        body: form
-    });
-
-    const contentType = response.headers.get('content-type');
-
-    if (contentType && contentType.includes('application/json')) {
-        // Handle error response
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to process audio');
-    } else {
-        // Handle successful response (audio file)
-        processingStep.textContent = 'Processing complete! Loading audio...';
-        const blob = await response.blob();
-
-        // Convert blob to base64 and play it
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            // Set base64 audio as the source
-            const base64Audio = e.target.result;
-            audioPlayer.pause();
-            audioPlayer.src = base64Audio; // Assign base64 data to the audio player
-            audioPlayer.load(); // Reloads the audio element with the new source
-            audioPlayer.style.display = 'block';
-            audioPlayer.disabled = false; // Enable the player in case it was disabled
+                const contentType = response.headers.get('content-type');
+                
+                if (contentType && contentType.includes('application/json')) {
+                    // Handle error response
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to process audio');
+                } else {
+                    // Handle successful response (audio file)
+                    processingStep.textContent = 'Processing complete! Loading audio...';
+                    const blob = await response.blob();
+                    const url = URL.createObjectURL(blob);
+                    audioPlayer.src = url;
+                    audioPlayer.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                errorMessage.textContent = error.message;
+                errorMessage.style.display = 'block';
+            } finally {
+                loading.style.display = 'none';
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Process Audio';
+            }
         };
-        reader.readAsDataURL(blob); // Convert blob to base64
-    }
-} catch (error) {
-    console.error('Error:', error);
-    errorMessage.textContent = error.message;
-    errorMessage.style.display = 'block';
-} finally {
-    loading.style.display = 'none';
-    submitBtn.disabled = false;
-    submitBtn.textContent = 'Process Audio';
-}
 
         // Update pattern field when preset changes
         document.getElementById('preset_name').addEventListener('change', function(e) {
