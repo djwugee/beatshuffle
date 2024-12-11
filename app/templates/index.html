@@ -6,9 +6,209 @@
     <title>Beatshuffle by WuG</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-</head>
-<body class="bg-gray-900 text-white min-h-screen flex flex-col items-center py-10">
-    <div class="w-full max-w-2xl bg-gray-800 rounded-lg shadow-lg p-6">
+    <script src="https://unpkg.com/wavesurfer.js@7.8.0-beta.2"></script>
+    <script src="https://unpkg.com/wavesurfer.js@7.8.10/dist/plugins/regions.min.js"></script>
+    <script src="https://unpkg.com/wavesurfer-multitrack/dist/multitrack.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
+</head>    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #1c1c1c;
+            margin: 0;
+            padding: 20px;
+            color: #fff;
+        }
+
+        #waveform {
+            width: 80%;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(255, 255, 255, 0.1);
+            margin: 0 auto;
+        }
+
+        button {
+            background-color: #8b008b;
+            border: none;
+            color: #fff;
+            padding: 10px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 20px;
+            box-shadow: 0 4px 6px rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+            width: 100%;
+            max-width: 120px;
+        }
+
+        button:hover {
+            background-color: #ff69b4;
+            box-shadow: 0 8px 12px rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        button:disabled {
+            background-color: #333;
+            cursor: not-allowed;
+        }
+
+        button i {
+            display: block;
+            margin: auto;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .upload-label {
+            background-color: #8b008b;
+            border: none;
+            color: #fff;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 20px;
+            box-shadow: 0 4px 6px rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+            width: 100%;
+            max-width: 120px;
+        }
+
+        .upload-label:hover {
+            background-color: #ff69b4;
+            box-shadow: 0 8px 12px rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 10px;
+            background: #8b008b;
+            outline: none;
+            opacity: 0.7;
+            transition: opacity .15s ease-in-out;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #ff69b4;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: #ff69b4;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+
+        #cntrlbuttons {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            margin-top: 10px;
+            width: 100%;
+            max-width: 900px;
+            margin: 10px auto;
+        }
+
+        #track-controls-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+        }
+
+        #track-controls-container > input[type="range"] {
+            width: 100%;
+            margin: 0 auto;
+        }
+
+        #wavcontrols {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            margin: 0 auto;
+        }
+
+        .individualcntrls {
+            width: 100%;
+            height: 130px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(255, 255, 255, 0.1);
+            margin: 10px 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 5px;
+            background-color: #2c2c2c;
+            margin: 5px;
+        }
+
+        .track-control {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+
+        .track-control-buttons {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+        }
+
+        .track-control-sliders {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        .track-control i {
+            margin-right: 10px;
+        }
+
+        .track-control input[type="range"] {
+            flex-grow: 1;
+            margin-left: 0px;
+        }
+
+        #individualcntrls-container {
+            width: 20%;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(255, 255, 255, 0.1);
+            margin: 10px 10px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 10px;
+            background-color: #2c2c2c;
+        }
+    </style>
+<body style="background-color: #2c2c2c;" class="text-white min-h-screen flex flex-col items-center py-10">
+    <div class="w-full max-w-2xl bg-gray-800 rounded-lg shadow-lg p-6" id="targetDiv">
         <h1 class="text-2xl font-bold text-center mb-6">BeatShuffler by djwugee</h1>
         
         <form id="audioForm" enctype="multipart/form-data" class="space-y-4">
@@ -107,101 +307,278 @@
     </div>
 
 
-<script>
-    document.getElementById('audioForm').onsubmit = async function (e) {
-        e.preventDefault();
+<body>
+    <div id="wavcontrols" class="w-full max-w-2xl bg-gray-700 rounded-lg shadow-lg p-4">
+        <div id="waveform"></div>
+        <div id="individualcntrls-container"></div>
+    </div>
+    <div id="track-controls-container" class="w-full max-w-2xl bg-gray-700 rounded-lg shadow-lg p-4">
+        <input type="range" min="10" max="100" value="10" />
+        <div id="cntrlbuttons">
+            <label for="track-upload" class="upload-label">
+                <i class="fas fa-upload icon"></i>
+            </label>
+            <input type="file" id="track-upload" multiple />
+            <button id="play" disabled><i class="fas fa-play icon"></i></button>
+            <button id="forward"><i class="fas fa-forward icon"></i></button>
+            <button id="backward"><i class="fas fa-backward icon"></i></button>
+            <button id="zoomIn"><i class="fas fa-search-plus icon"></i></button>
+            <button id="zoomOut"><i class="fas fa-search-minus icon"></i></button>
+        </div>
+    </div>
 
-        const form = new FormData(this);
-        const loading = document.getElementById('loading');
-        const errorMessage = document.getElementById('error-message');
-        const submitBtn = document.getElementById('submitBtn');
-        const outputSection = document.getElementById('output');
-
-        // Reset UI elements
-        loading.style.display = 'flex';
-        errorMessage.style.display = 'none';
-        submitBtn.disabled = true;
-        submitBtn.textContent = 'Processing...';
-
-        try {
-            // Show processing step
-            const processingStep = loading.querySelector('.processing-step');
-            processingStep.textContent = 'Uploading audio file...';
-
-            // Send the audio file to the server
-            const response = await fetch('/process', {
-                method: 'POST',
-                body: form
-            });
-
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.error || 'Failed to process audio');
+    <script type="module">
+        let multitrack;
+        let tracks = [];
+    
+        function getRandomColor() {
+            const letters = '0123456789ABCDEF';
+            let color = '#';
+            for (let i = 0; i < 6; i++) {
+                color += letters[Math.floor(Math.random() * 16)];
             }
-
-            // Get the processed audio as a Blob
-            const blob = await response.blob();
-
-            // Create a downloadable link
-            const downloadLink = document.createElement('a');
-            const url = URL.createObjectURL(blob);
-            downloadLink.href = url;
-            downloadLink.download = 'processed-audio.wav'; // Specify the file name
-            downloadLink.textContent = 'Click here to download your processed audio';
-            downloadLink.classList.add('text-blue-500', 'hover:underline', 'mt-4', 'block');
-
-            // Create an audio player
-            const audioPlayer = document.createElement('audio');
-            audioPlayer.controls = true;
-            audioPlayer.src = url;
-            audioPlayer.classList.add('mt-4', 'w-full', 'max-w-lg');
-
-            // Update the output section with the download link and audio player
-            outputSection.innerHTML = '<h2 class="text-lg font-semibold text-green-600">Processing complete!</h2>';
-            outputSection.appendChild(audioPlayer);
-            outputSection.appendChild(downloadLink);
-        } catch (error) {
-            // Show error message
-            errorMessage.textContent = error.message;
-            errorMessage.classList.add('text-red-500', 'mt-4', 'text-sm');
-            errorMessage.style.display = 'block';
-        } finally {
-            // Reset button state and hide loading spinner
-            loading.style.display = 'none';
-            submitBtn.disabled = false;
-            submitBtn.textContent = 'Process Audio';
+            return color;
         }
-    };
-
-        // Update pattern field when preset changes
-        document.getElementById('preset_name').addEventListener('change', function(e) {
-            const pattern = document.getElementById('pattern');
-            if (e.target.value === 'None') {
-                pattern.value = 'test';
-            } else {
-                pattern.value = e.target.value;
+    
+        document.getElementById('audioForm').onsubmit = async function (e) {
+            e.preventDefault();
+            const form = new FormData(this);
+            const loading = document.getElementById('loading');
+            const errorMessage = document.getElementById('error-message');
+            const submitBtn = document.getElementById('submitBtn');
+            const outputSection = document.getElementById('output');
+    
+            // Reset UI elements
+            loading.style.display = 'flex';
+            errorMessage.style.display = 'none';
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Processing...';
+    
+            try {
+                // Show processing step
+                const processingStep = loading.querySelector('.processing-step');
+                processingStep.textContent = 'Uploading audio file...';
+    
+                // Send the audio file to the server
+                const response = await fetch('/process', {
+                    method: 'POST',
+                    body: form
+                });
+    
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to process audio');
+                }
+    
+                // Get the processed audio as a Blob
+                const blob = await response.blob();
+    
+                // Create a downloadable link
+                const downloadLink = document.createElement('a');
+                const url = URL.createObjectURL(blob);
+                downloadLink.href = url;
+                downloadLink.download = 'processed-audio.wav'; // Specify the file name
+                downloadLink.textContent = 'Click here to download your processed audio';
+                downloadLink.classList.add('text-blue-500', 'hover:underline', 'mt-4', 'block');
+    
+                // Update the output section with the download link
+                outputSection.innerHTML = '<h2 class="text-lg font-semibold text-green-600">Processing complete!</h2>';
+                outputSection.appendChild(downloadLink);
+    
+                // Create a track object using the blob
+                const newTrack = [{
+                    id: `track${tracks.length + 1}`, // Use an incremental ID with template literals
+                    url: URL.createObjectURL(blob), // Convert the blob to a URL
+                    draggable: true,
+                    envelope: false,
+                    volume: 1,
+                    options: {
+                        waveColor: getRandomColor(),
+                        progressColor: 'hsl(161, 87%, 20%)',
+                        normalize: true,
+                        audioRate: 1
+                    }
+                }];
+    
+                // Initialize the multitrack with the new track created from the blob
+                initMultitrack(newTrack);
+    
+            } catch (error) {
+                // Show error message
+                errorMessage.textContent = error.message;
+                errorMessage.classList.add('text-red-500', 'mt-4', 'text-sm');
+                errorMessage.style.display = 'block';
+            } finally {
+                // Reset button state and hide loading spinner
+                loading.style.display = 'none';
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Process Audio';
             }
+        };
+    
+        document.querySelector('#track-upload').addEventListener('change', function (e) {
+            if (multitrack) {
+                multitrack .destroy();
+            }
+            const files = e.target.files;
+            const newTracks = Array.from(files).map((file, index) => ({
+                id: `track${tracks.length + index}`, // Use template literals for the ID
+                url: URL.createObjectURL(file), // Convert the file to a URL
+                draggable: true,
+                envelope: false,
+                volume: 1,
+                options: {
+                    waveColor: getRandomColor(),
+                    progressColor: 'hsl(161, 87%, 20%)',
+                    normalize: true,
+                    audioRate: 1
+                }
+            }));
+            initMultitrack(newTracks);
         });
-
-        // File input validation
-        document.getElementById('audiofile').addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (file) {
-                const validTypes = ['audio/mpeg', 'audio/wav', 'audio/flac', 'audio/ogg'];
-                if (!validTypes.includes(file.type)) {
-                    alert('Please select a valid audio file (MP3, WAV, FLAC, or OGG)');
-                    e.target.value = '';
+    
+        async function initMultitrack(newTracks) {
+            if (multitrack) {
+                multitrack.destroy();
+            }
+    
+            tracks = [...tracks, ...newTracks];
+    
+            multitrack = Multitrack.create(tracks, {
+                container: document.querySelector('#waveform')
+            });
+    
+            const playButton = document.querySelector('#play');
+            playButton.disabled = true;
+    
+            multitrack.once('canplay', async () => {
+                playButton.disabled = false;
+                playButton.onclick = () => {
+                    multitrack.isPlaying() ? multitrack.pause() : multitrack.play();
+                    playButton.innerHTML = multitrack.isPlaying() ? '<i class="fas fa-pause icon"></i>' : '<i class="fas fa-play icon"></i>';
+                }
+            });
+    
+            document.querySelector('#zoomIn').addEventListener('click', function () {
+                multitrack.zoom(1.1);
+            });
+    
+            document.querySelector('#zoomOut').addEventListener('click', function () {
+                multitrack.zoom(0.9);
+            });
+    
+            addTrackControls(newTracks);
+            syncHeights();
+        }
+    
+        function syncHeights() {
+            const waveformHeight = document.querySelector('#waveform').offsetHeight;
+            document.querySelector('#individualcntrls-container').style.height = `${waveformHeight}px`;
+        }
+    
+        function addTrackControls(tracks) {
+            const controlsContainer = document.querySelector('#individualcntrls-container');
+            tracks.forEach((track, index) => {
+                const trackControls = document.createElement('div');
+                trackControls.classList.add('individualcntrls');
+                trackControls.setAttribute('data-track-id', track.id); // Assign track ID
+    
+                const muteButton = document.createElement('button');
+                muteButton.innerHTML = '<i class="fas fa-volume-mute"></i>';
+                muteButton.onclick = () => toggleMute(track.id);
+    
+                const soloButton = document.createElement('button');
+                soloButton.innerHTML = '<i class="fas fa-headphones"></i>';
+                soloButton.onclick = () => toggleSolo(track.id);
+    
+                const volumeSlider = document.createElement('input');
+                volumeSlider.type = 'range';
+                volumeSlider.min = 0;
+                volumeSlider.max = 100;
+                volumeSlider.value = 100;
+                volumeSlider.oninput = (e) => setVolume(track.id, e.target.value / 100);
+    
+                const panSlider = document.createElement('input');
+                panSlider.type = 'range';
+                panSlider.min = -1;
+                panSlider.max = 1;
+                panSlider.step = 0.01;
+                panSlider.value = 0;
+                panSlider.oninput = (e) => setPan(track.id, e.target.value);
+    
+                const trackControlButtons = document.createElement('div');
+                trackControlButtons.classList.add('track-control-buttons');
+                trackControlButtons.appendChild(muteButton);
+                trackControlButtons.appendChild(soloButton);
+    
+                const trackControlSliders = document.createElement('div');
+                trackControlSliders.classList.add('track-control-sliders');
+                trackControlSliders.appendChild(volumeSlider);
+                trackControlSliders.appendChild(panSlider);
+    
+                trackControls.appendChild(trackControlButtons);
+                trackControls.appendChild(trackControlSliders);
+                controlsContainer.appendChild(trackControls);
+            });
+        }
+    
+        function toggleMute(trackId) {
+            const trackIndex = tracks.findIndex(track => track.id === trackId);
+            if (trackIndex !== -1) {
+                tracks[trackIndex].muted = !tracks[trackIndex].muted;
+                multitrack.setTrackVolume(trackIndex, tracks[trackIndex].muted ? 0 : tracks[trackIndex].volume);
+            }
+        }
+    
+        function toggleSolo(trackId) {
+            const trackIndex = tracks.findIndex(track => track.id === trackId);
+            if (trackIndex !== -1) {
+                const isSoloed = !tracks[trackIndex].soloed;
+                tracks.forEach((track, index) => {
+                    track.soloed = false;
+                    multitrack.setTrackVolume(index, 0 );
+                });
+                tracks[trackIndex].soloed = isSoloed;
+                multitrack.setTrackVolume(trackIndex, isSoloed ? tracks[trackIndex].volume : 0);
+            }
+        }
+    
+        function setVolume(trackId, volume) {
+            const trackIndex = tracks.findIndex(track => track.id === trackId);
+            if (trackIndex !== -1) {
+                tracks[trackIndex].volume = volume;
+                if (!tracks[trackIndex].muted && !tracks[trackIndex].soloed) {
+                    multitrack.setTrackVolume(trackIndex, volume);
                 }
             }
-        });
-
-        // Scale input validation
-        document.getElementById('scale').addEventListener('change', function(e) {
-            const value = parseFloat(e.target.value);
-            if (value < 0.1) {
-                e.target.value = 0.1;
-            }
-        });
+        }
+    
+        function setPan(trackId, pan) {
+            const track = multitrack.getTrackById(trackId);
+            track.setPan(pan);
+        }
+    
+        // Zoom
+        const slider = document.querySelector('input[type="range"]');
+        slider.oninput = () => {
+            multitrack.zoom(slider.valueAsNumber);
+        };
+    
+        // Forward/back buttons
+        const forward = document.querySelector('#forward');
+        forward.onclick = () => {
+            multitrack.setTime(multitrack.getCurrentTime() + 30);
+        };
+        const backward = document.querySelector('#backward');
+        backward.onclick = () => {
+            multitrack.setTime(multitrack.getCurrentTime() - 30);
+        };
+    
+        // Observe changes in the waveform container height
+        const observer = new MutationObserver(syncHeights);
+        observer.observe(document.querySelector('#waveform'), { attributes: true, childList: true, subtree: true });
+    
+        window.addEventListener('resize', syncHeights);
     </script>
 </body>
 </html>
