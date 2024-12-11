@@ -4,129 +4,173 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Beatshuffle by WuG</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 </head>
-<body class="dark-theme">
-    <div class="container">
-        <h1>BeatShuffler by djwugee</h1>
-        <p></p>
-
-        <form id="audioForm" enctype="multipart/form-data">
+<body class="bg-gray-900 text-white min-h-screen flex flex-col items-center py-10">
+    <div class="w-full max-w-2xl bg-gray-800 rounded-lg shadow-lg p-6">
+        <h1 class="text-2xl font-bold text-center mb-6">BeatShuffler by djwugee</h1>
+        
+        <form id="audioForm" enctype="multipart/form-data" class="space-y-4">
             <div class="form-group">
-                <label for="audiofile">Upload Audio File:</label>
-                <input type="file" id="audiofile" name="audiofile" accept="audio/*" required>
-                <small>Supported formats: MP3, WAV, FLAC, OGG</small>
+                <label for="audiofile" class="block text-sm font-medium mb-2">
+                    <i class="fas fa-upload"></i> Upload Audio File:
+                </label>
+                <input type="file" id="audiofile" name="audiofile" accept="audio/*" required
+                    class="block w-full text-sm text-gray-300 bg-gray-700 border border-gray-600 rounded-lg file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:bg-gray-600 file:text-gray-300 hover:file:bg-gray-500">
+                <small class="text-gray-400">Supported formats: MP3, WAV, FLAC, OGG</small>
             </div>
 
             <div class="form-group">
-                <label for="preset_name">Select Preset:</label>
-                <select id="preset_name" name="preset_name">
+                <label for="preset_name" class="block text-sm font-medium mb-2">
+                    <i class="fas fa-list"></i> Select Preset:
+                </label>
+                <select id="preset_name" name="preset_name"
+                    class="block w-full text-sm text-gray-300 bg-gray-700 border border-gray-600 rounded-lg">
                     {% for preset in preset_choices %}
                     <option value="{{ preset }}">{{ preset }}</option>
                     {% endfor %}
                 </select>
-                <small>Choose a preset pattern or customize below</small>
+                <small class="text-gray-400">Choose a preset pattern or customize below</small>
             </div>
 
             <div class="form-group">
-                <label for="pattern">Pattern:</label>
-                <input type="text" id="pattern" name="pattern" value="test">
-                <small>Example: "1,2,3,4" or use presets. Pattern will update when preset is selected.</small>
+                <label for="pattern" class="block text-sm font-medium mb-2">
+                    <i class="fas fa-wave-square"></i> Pattern:
+                </label>
+                <input type="text" id="pattern" name="pattern" value="test"
+                    class="block w-full text-sm text-gray-300 bg-gray-700 border border-gray-600 rounded-lg p-2">
+                <small class="text-gray-400">Example: "1,2,3,4" or use presets.</small>
             </div>
 
-            <div class="form-group">
-                <label for="scale">Scale:</label>
-                <input type="number" id="scale" name="scale" value="1" step="0.1" min="0.1">
-                <small>Affects beat detection spacing (min: 0.1)</small>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="form-group">
+                    <label for="scale" class="block text-sm font-medium mb-2">
+                        <i class="fas fa-compress"></i> Scale:
+                    </label>
+                    <input type="number" id="scale" name="scale" value="1" step="0.1" min="0.1"
+                        class="block w-full text-sm text-gray-300 bg-gray-700 border border-gray-600 rounded-lg p-2">
+                    <small class="text-gray-400">Affects beat detection spacing (min: 0.1)</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="shift" class="block text-sm font-medium mb-2">
+                        <i class="fas fa-arrows-alt-h"></i> Shift:
+                    </label>
+                    <input type="number" id="shift" name="shift" value="0" step="0.1"
+                        class="block w-full text-sm text-gray-300 bg-gray-700 border border-gray-600 rounded-lg p-2">
+                    <small class="text-gray-400">Shifts beat positions</small>
+                </div>
             </div>
 
-            <div class="form-group">
-                <label for="shift">Shift:</label>
-                <input type="number" id="shift" name="shift" value="0" step="0.1">
-                <small>Shifts beat positions</small>
-            </div>
-
-            <div class="form-group checkbox-group">
-                <label>
-                    <input type="checkbox" id="caching" name="caching" checked>
+            <div class="form-group flex items-center space-x-2">
+                <input type="checkbox" id="caching" name="caching" checked
+                    class="h-4 w-4 text-blue-600 bg-gray-700 border-gray-600 rounded">
+                <label for="caching" class="text-sm font-medium">
                     Enable Caching
                 </label>
-                <small>Cache beat detection results for faster processing</small>
+                <small class="text-gray-400 ml-2">Cache beat detection results</small>
             </div>
 
-            <div class="form-group checkbox-group">
-                <label>
-                    <input type="checkbox" id="variableBPM" name="variableBPM">
+            <div class="form-group flex items-center space-x-2">
+                <input type="checkbox" id="variableBPM" name="variableBPM"
+                    class="h-4 w-4 text-blue-600 bg-gray-700 border-gray-600 rounded">
+                <label for="variableBPM" class="text-sm font-medium">
                     Variable BPM Support
                 </label>
-                <small>Better for songs with changing tempo (slightly less accurate)</small>
+                <small class="text-gray-400 ml-2">Better for songs with changing tempo</small>
             </div>
 
-            <button type="submit" id="submitBtn">Process Audio</button>
+            <button type="submit" id="submitBtn"
+                class="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-md">
+                <i class="fas fa-play-circle"></i> Process Audio
+            </button>
         </form>
 
-        <div id="output" class="output-section">
-            <h2>Output</h2>
-            <div id="loading" style="display: none;">
-                <div class="spinner"></div>
-                <p>Processing audio... This may take a few moments.</p>
-                <p class="processing-step"></p>
+        <div id="output" class="mt-6">
+            <h2 class="text-xl font-bold mb-4">Output</h2>
+            <div id="loading" class="hidden">
+                <div class="flex items-center space-x-2">
+                    <i class="fas fa-spinner fa-spin text-blue-500 text-2xl"></i>
+                    <p>Processing audio... This may take a few moments.</p>
+                </div>
+                <p class="text-gray-400 processing-step"></p>
             </div>
-            <audio id="audio-player" controls style="display: none;"></audio>
-            <div id="error-message" class="error" style="display: none;"></div>
+            <audio id="audio-player" controls class="hidden mt-4 w-full rounded-lg"></audio>
+            <div id="error-message" class="hidden mt-4 text-red-500"></div>
         </div>
     </div>
 
-    <script>
-        document.getElementById('audioForm').onsubmit = async function(e) {
-            e.preventDefault();
-            
-            const form = new FormData(this);
-            const outputSection = document.getElementById('output');
-            const loading = document.getElementById('loading');
-            const processingStep = loading.querySelector('.processing-step');
-            const audioPlayer = document.getElementById('audio-player');
-            const errorMessage = document.getElementById('error-message');
-            const submitBtn = document.getElementById('submitBtn');
-            
-            // Reset output section
-            loading.style.display = 'block';
-            audioPlayer.style.display = 'none';
-            errorMessage.style.display = 'none';
-            submitBtn.disabled = true;
-            submitBtn.textContent = 'Processing...';
-            
-            try {
-                processingStep.textContent = 'Uploading audio file...';
-                const response = await fetch('/process', {
-                    method: 'POST',
-                    body: form
-                });
+<script>
+    // Function to detect if the user is on a mobile device
+    function isMobile() {
+        return /Mobi|Android/i.test(navigator.userAgent);  // Check for common mobile device identifiers in the user agent string
+    }
 
-                const contentType = response.headers.get('content-type');
+    document.getElementById('audioForm').onsubmit = async function(e) {
+        e.preventDefault();
+
+        const form = new FormData(this);
+        const outputSection = document.getElementById('output');
+        const loading = document.getElementById('loading');
+        const processingStep = loading.querySelector('.processing-step');
+        const audioPlayer = document.getElementById('audio-player');
+        const errorMessage = document.getElementById('error-message');
+        const submitBtn = document.getElementById('submitBtn');
+        
+        // Reset output section
+        loading.style.display = 'block';
+        audioPlayer.style.display = 'none';
+        errorMessage.style.display = 'none';
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Processing...';
+
+        try {
+            processingStep.textContent = 'Uploading audio file...';
+            const response = await fetch('/process', {
+                method: 'POST',
+                body: form
+            });
+
+            const contentType = response.headers.get('content-type');
+
+            if (contentType && contentType.includes('application/json')) {
+                // Handle error response
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to process audio');
+            } else {
+                // Handle successful response (audio file)
+                processingStep.textContent = 'Processing complete! Loading audio...';
                 
-                if (contentType && contentType.includes('application/json')) {
-                    // Handle error response
-                    const error = await response.json();
-                    throw new Error(error.error || 'Failed to process audio');
+                const blob = await response.blob();
+
+                if (isMobile()) {
+                    // For mobile, convert the blob to base64 before setting it as source
+                    var reader = new FileReader();
+                    reader.onload = function(e) {
+                        var base64Data = e.target.result;
+                        // Set the base64 data directly in the audio player for mobile playback
+                        audioPlayer.src = base64Data;
+                        audioPlayer.style.display = 'block';
+                    };
+                    reader.readAsDataURL(blob);  // Convert to Base64
                 } else {
-                    // Handle successful response (audio file)
-                    processingStep.textContent = 'Processing complete! Loading audio...';
-                    const blob = await response.blob();
+                    // For non-mobile devices, handle the blob normally
                     const url = URL.createObjectURL(blob);
                     audioPlayer.src = url;
                     audioPlayer.style.display = 'block';
                 }
-            } catch (error) {
-                console.error('Error:', error);
-                errorMessage.textContent = error.message;
-                errorMessage.style.display = 'block';
-            } finally {
-                loading.style.display = 'none';
-                submitBtn.disabled = false;
-                submitBtn.textContent = 'Process Audio';
             }
-        };
+        } catch (error) {
+            console.error('Error:', error);
+            errorMessage.textContent = error.message;
+            errorMessage.style.display = 'block';
+        } finally {
+            loading.style.display = 'none';
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Process Audio';
+        }
+    };
 
         // Update pattern field when preset changes
         document.getElementById('preset_name').addEventListener('change', function(e) {
