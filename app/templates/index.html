@@ -77,60 +77,58 @@
         </div>
     </div>
 
-    <script>
-        document.getElementById('audioForm').onsubmit = async function(e) {
-            e.preventDefault();
+ <script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const form = document.getElementById('audioForm');
+        
+        form.addEventListener('submit', async function (event) {
+            event.preventDefault(); // Prevent the default form submission
             
-            const form = new FormData(this);
-            const outputSection = document.getElementById('output');
+            const formData = new FormData(form);
             const loading = document.getElementById('loading');
             const processingStep = loading.querySelector('.processing-step');
             const audioPlayer = document.getElementById('audio-player');
             const errorMessage = document.getElementById('error-message');
             const submitBtn = document.getElementById('submitBtn');
-            
-            // Reset output section
-            loading.style.display = 'block';
-            audioPlayer.style.display = 'none';
-            errorMessage.style.display = 'none';
-submitBtn.disabled = true;
-submitBtn.textContent = 'Processing...';
 
-try {
-    processingStep.textContent = 'Uploading audio file...';
-    const response = await fetch('/process', {
-        method: 'POST',
-        body: form
+            loading.classList.remove('hidden');
+            audioPlayer.classList.add('hidden');
+            errorMessage.classList.add('hidden');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Processing...';
+
+            try {
+                processingStep.textContent = 'Uploading audio file...';
+                const response = await fetch('/process', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const contentType = response.headers.get('content-type');
+                if (contentType && contentType.includes('application/json')) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to process audio');
+                } else {
+                    processingStep.textContent = 'Processing complete! Loading audio...';
+                    const blob = await response.blob();
+                    const url = URL.createObjectURL(blob);
+
+                    audioPlayer.pause();
+                    audioPlayer.src = url;
+                    audioPlayer.load();
+                    audioPlayer.classList.remove('hidden');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                errorMessage.textContent = error.message;
+                errorMessage.classList.remove('hidden');
+            } finally {
+                loading.classList.add('hidden');
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Process Audio';
+            }
+        });
     });
-
-    const contentType = response.headers.get('content-type');
-    
-    if (contentType && contentType.includes('application/json')) {
-        // Handle error response
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to process audio');
-    } else {
-        // Handle successful response (audio file)
-        processingStep.textContent = 'Processing complete! Loading audio...';
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-
-        // Ensure the audio player is properly reset
-        audioPlayer.pause();
-        audioPlayer.src = url;
-        audioPlayer.load(); // Reloads the audio element with the new source
-        audioPlayer.style.display = 'block';
-        audioPlayer.disabled = false; // Enable the player in case it was disabled
-    }
-} catch (error) {
-    console.error('Error:', error);
-    errorMessage.textContent = error.message;
-    errorMessage.style.display = 'block';
-} finally {
-    loading.style.display = 'none';
-    submitBtn.disabled = false;
-    submitBtn.textContent = 'Process Audio';
-}
 
         // Update pattern field when preset changes
         document.getElementById('preset_name').addEventListener('change', function(e) {
