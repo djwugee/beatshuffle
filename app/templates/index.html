@@ -98,74 +98,75 @@
             </div>
             <audio id="audio-player" controls class="hidden mt-4 w-full rounded-lg"></audio>
             <div id="error-message" class="hidden mt-4 text-red-500"></div>
+            <a id="downloadBtn" href="#" style="display: none;" class="download-link">
+                Download Processed Audio
+            </a>
+            
+
         </div>
     </div>
 
-<script>
-    // Function to detect if the user is on a mobile device
-    function isMobile() {
-        return /Mobi|Android/i.test(navigator.userAgent);  // Check for common mobile device identifiers in the user agent string
-    }
 
-    document.getElementById('audioForm').onsubmit = async function(e) {
+<script>
+    document.getElementById('audioForm').onsubmit = async function (e) {
         e.preventDefault();
 
         const form = new FormData(this);
-        const outputSection = document.getElementById('output');
         const loading = document.getElementById('loading');
-        const processingStep = loading.querySelector('.processing-step');
-        const audioPlayer = document.getElementById('audio-player');
         const errorMessage = document.getElementById('error-message');
         const submitBtn = document.getElementById('submitBtn');
-        
-        // Reset output section
-        loading.style.display = 'block';
-        audioPlayer.style.display = 'none';
+        const outputSection = document.getElementById('output');
+
+        // Reset UI elements
+        loading.style.display = 'flex';
         errorMessage.style.display = 'none';
         submitBtn.disabled = true;
         submitBtn.textContent = 'Processing...';
 
         try {
+            // Show processing step
+            const processingStep = loading.querySelector('.processing-step');
             processingStep.textContent = 'Uploading audio file...';
+
+            // Send the audio file to the server
             const response = await fetch('/process', {
                 method: 'POST',
                 body: form
             });
 
-            const contentType = response.headers.get('content-type');
-
-            if (contentType && contentType.includes('application/json')) {
-                // Handle error response
+            if (!response.ok) {
                 const error = await response.json();
                 throw new Error(error.error || 'Failed to process audio');
-            } else {
-                // Handle successful response (audio file)
-                processingStep.textContent = 'Processing complete! Loading audio...';
-                
-                const blob = await response.blob();
-
-                if (isMobile()) {
-                    // For mobile, convert the blob to base64 before setting it as source
-                    var reader = new FileReader();
-                    reader.onload = function(e) {
-                        var base64Data = e.target.result;
-                        // Set the base64 data directly in the audio player for mobile playback
-                        audioPlayer.src = base64Data;
-                        audioPlayer.style.display = 'block';
-                    };
-                    reader.readAsDataURL(blob);  // Convert to Base64
-                } else {
-                    // For non-mobile devices, handle the blob normally
-                    const url = URL.createObjectURL(blob);
-                    audioPlayer.src = url;
-                    audioPlayer.style.display = 'block';
-                }
             }
+
+            // Get the processed audio as a Blob
+            const blob = await response.blob();
+
+            // Create a downloadable link
+            const downloadLink = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            downloadLink.href = url;
+            downloadLink.download = 'processed-audio.wav'; // Specify the file name
+            downloadLink.textContent = 'Click here to download your processed audio';
+            downloadLink.classList.add('text-blue-500', 'hover:underline', 'mt-4', 'block');
+
+            // Create an audio player
+            const audioPlayer = document.createElement('audio');
+            audioPlayer.controls = true;
+            audioPlayer.src = url;
+            audioPlayer.classList.add('mt-4', 'w-full', 'max-w-lg');
+
+            // Update the output section with the download link and audio player
+            outputSection.innerHTML = '<h2 class="text-lg font-semibold text-green-600">Processing complete!</h2>';
+            outputSection.appendChild(audioPlayer);
+            outputSection.appendChild(downloadLink);
         } catch (error) {
-            console.error('Error:', error);
+            // Show error message
             errorMessage.textContent = error.message;
+            errorMessage.classList.add('text-red-500', 'mt-4', 'text-sm');
             errorMessage.style.display = 'block';
         } finally {
+            // Reset button state and hide loading spinner
             loading.style.display = 'none';
             submitBtn.disabled = false;
             submitBtn.textContent = 'Process Audio';
