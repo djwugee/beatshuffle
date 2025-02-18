@@ -105,7 +105,7 @@ def generate(audio: np.ndarray, sr: int, lib='madmom.BeatDetectionProcessor', ca
             act = madmom.features.beats.RNNBeatProcessor()(madmom.audio.signal.Signal(audio.T, sr))
             beatmap = proc(act) * sr
         elif lib == 'madmom.BeatDetectionProcessor':
-            histogram_processor = TempoHistogramProcessor()
+            histogram_processor = TempoHistogramProcessor(min_bpm=40, max_bpm=200)
             proc = TempoEstimationProcessor(histogram_processor=histogram_processor)
             act = madmom.features.beats.RNNBeatProcessor()(madmom.audio.signal.Signal(audio.T, sr))
             beatmap = proc(act) * sr
