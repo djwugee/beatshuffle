@@ -2,20 +2,20 @@ import numpy as np
 from collections.abc import MutableMapping, MutableSequence
 import madmom
 from madmom.features.tempo import TempoEstimationProcessor, TempoHistogramProcessor
-from. import utils
+from . import utils
 
 def scale(beatmap: np.ndarray, scale: float, log=True, integer=True) -> np.ndarray:
-    if isinstance(scale, str): 
+    if isinstance(scale, str):
         scale = utils._safer_eval(scale)
     assert scale > 0, f"scale should be > 0, your scale is {scale}"
-    if scale == 1: 
+    if scale == 1:
         return beatmap
     else:
         import math
-        if log is True: 
+        if log is True:
             print(f'scale={scale}; ')
         a = 0
-        b = np.array(, dtype=int)
+        b = np.array([], dtype=int)
         if scale % 1 == 0:
             while a < len(beatmap):
                 b = np.append(b, beatmap[int(a)])
@@ -32,17 +32,17 @@ def scale(beatmap: np.ndarray, scale: float, log=True, integer=True) -> np.ndarr
         return b
 
 def shift(beatmap: np.ndarray, shift: float, log=True, mode=1) -> np.ndarray:
-    if isinstance(shift, str): 
+    if isinstance(shift, str):
         shift = utils._safer_eval(shift)
-    if shift == 0: 
+    if shift == 0:
         return beatmap
     # positive shift
     elif shift > 0:
         # full value of beats is removed from the beginning
-        if shift >= 1: 
+        if shift >= 1:
             beatmap = beatmap[int(shift // 1):]
         # shift beatmap by the decimal value
-        if shift % 1!= 0:
+        if shift % 1 != 0:
             shift = shift % 1
             for i in range(len(beatmap) - int(shift) - 1):
                 beatmap[i] = int(beatmap[i] + shift * (beatmap[i + 1] - beatmap[i]))
@@ -52,20 +52,19 @@ def shift(beatmap: np.ndarray, shift: float, log=True, mode=1) -> np.ndarray:
         # full values are inserted in between first beats
         if shift >= 1:
             if mode == 1:
-                step = int((beatmap - beatmap) / (int(shift // 1) + 1))
-                beatmap = np.insert(arr=beatmap, obj=1, values=np.linspace(start=beatmap + step - 1, stop=1 + beatmap - step, num=int(shift // 1)))
+                step = int((beatmap[-1] - beatmap[0]) / (int(shift // 1) + 1))
+                beatmap = np.insert(arr=beatmap, obj=1, values=np.linspace(start=beatmap[0] + step - 1, stop=beatmap[0] + step, num=int(shift // 1)))
             elif mode == 2:
                 for i in range(int(shift // 1)):
                     beatmap = np.insert(arr=beatmap, obj=(i * 2) + 1, values=int((beatmap[i * 2] + beatmap[(i * 2) + 1]) / 2))
         # shift beatmap by the decimal value
-        if shift % 1!= 0:
+        if shift % 1 != 0:
             shift = shift % 1
             for i in reversed(range(len(beatmap))):
-                if i == 0: 
+                if i == 0:
                     continue
                 beatmap[i] = int(beatmap[i] - shift * (beatmap[i] - beatmap[i - 1]))
     return beatmap
-
 
 def generate(audio: np.ndarray, sr: int, lib='madmom.BeatDetectionProcessor', caching=True, filename: str = None, log=True, load_settings=True, split=None):
     """Creates beatmap attribute with a list of positions of beats in samples."""
@@ -133,7 +132,7 @@ def generate(audio: np.ndarray, sr: int, lib='madmom.BeatDetectionProcessor', ca
             act = rnn_processor(madmom.audio.signal.Signal(audio.T, sr))
             proc_result = proc(act)
         elif lib == 'madmom.DBNDownBeatTrackingProcessor':
-            proc = madmom.features.downbeats.DBNDownBeatTrackingProcessor(beats_per_bar=, fps=100)
+            proc = madmom.features.downbeats.DBNDownBeatTrackingProcessor(beats_per_bar=4, fps=100)
             act = madmom.features.downbeats.RNNDownBeatProcessor()(madmom.audio.signal.Signal(audio.T, sr))
             proc_result = proc(act)
             if proc_result is not None:
@@ -148,7 +147,7 @@ def generate(audio: np.ndarray, sr: int, lib='madmom.BeatDetectionProcessor', ca
             from madmom.processors import SequentialProcessor
             log = LogarithmicSpectrogramProcessor()
             diff = SpectrogramDifferenceProcessor(positive_diffs=True)
-            mb = MultiBandSpectrogramProcessor(crossover_frequencies=)
+            mb = MultiBandSpectrogramProcessor(crossover_frequencies=[200, 400])
             pre_proc = SequentialProcessor([log, diff, mb])
             act = pre_proc(madmom.audio.signal.Signal(audio.T, sr))
             proc_result = proc(act)
@@ -159,7 +158,7 @@ def generate(audio: np.ndarray, sr: int, lib='madmom.BeatDetectionProcessor', ca
                 raise ValueError("proc(act) returned None, unable to generate beatmap.")
         elif lib == 'madmom.DBNBarTrackingProcessor':
             beats = generate(audio=audio, sr=sr, filename=filename, lib='madmom.DBNBeatTrackingProcessor', caching=caching)
-            proc = madmom.features.downbeats.DBNBarTrackingProcessor(beats_per_bar=, fps=100)
+            proc = madmom.features.downbeats.DBNBarTrackingProcessor(beats_per_bar=4, fps=100)
             act = madmom.features.downbeats.RNNBarProcessor()(((madmom.audio.signal.Signal(audio.T, sr)), beats))
             proc_result = proc(act)
             if proc_result is not None:
@@ -176,7 +175,7 @@ def generate(audio: np.ndarray, sr: int, lib='madmom.BeatDetectionProcessor', ca
         if 'madmom' in lib.lower() and proc_result is not None:  # Check only if it's a madmom processor
             beatmap = proc_result * sr
 
-        if proc_result is not None or 'librosa' in lib.lower(): #check if librosa or madmom generated a beatmap
+        if proc_result is not None or 'librosa' in lib.lower():  # check if librosa or madmom generated a beatmap
             pass
         else:
             raise ValueError("proc(act) returned None, unable to generate beatmap.")
@@ -194,42 +193,41 @@ def generate(audio: np.ndarray, sr: int, lib='madmom.BeatDetectionProcessor', ca
         if os.path.exists(settingsDir):
             with open(settingsDir, 'r') as f:
                 settings = f.read().split(',')
-            if settings!= 'None':
+            if settings != 'None':
                 beatmap = scale(beatmap, settings, log=False)
-            if settings!= 'None':
+            if settings != 'None':
                 beatmap = shift(beatmap, settings, log=False)
-            if settings!= 'None':
+            if settings != 'None':
                 beatmap = np.sort(np.absolute(beatmap - int(settings)))
 
     return beatmap
 
-
-def save_settings(audio: np.ndarray, filename: str = None, lib: str = 'madmom.BeatDetectionProcessor', scale: float = None, shift: float = None, adjust: int = None, normalized: str = None, log = True, overwrite = 'ask'):
+def save_settings(audio: np.ndarray, filename: str = None, lib: str = 'madmom.BeatDetectionProcessor', scale: float = None, shift: float = None, adjust: int = None, normalized: str = None, log=True, overwrite='ask'):
     if isinstance(overwrite, str): overwrite = overwrite.lower()
-    audio_id=hex(len(audio))
-    cacheDir="beat_manipulator/beatmaps/" + ''.join(filename.split('/')[-1]) + "_"+lib+"_"+audio_id+'.txt'
+    audio_id = hex(len(audio))
+    cacheDir = "beat_manipulator/beatmaps/" + ''.join(filename.split('/')[-1]) + "_" + lib + "_" + audio_id + '.txt'
     import os
     assert os.path.exists(cacheDir), f"Beatmap `{cacheDir}` doesn't exist"
-    settingsDir="beat_manipulator/beatmaps/" + ''.join(filename.split('/')[-1]) + "_"+lib+"_"+audio_id+'_settings.txt'
+    settingsDir = "beat_manipulator/beatmaps/" + ''.join(filename.split('/')[-1]) + "_" + lib + "_" + audio_id + '_settings.txt'
 
-    try: 
+    try:
         a = utils._safer_eval_strict(scale)
         if a == 1: scale = None
     except Exception as e: assert scale is None, f'scale = `{scale}` - Not a valid scale, should be either a number, a math expression, or None: {e}'
-    try: 
+    try:
         a = utils._safer_eval_strict(shift)
         if a == 0: shift = None
     except Exception as e: assert shift is None, f'shift = `{shift}` - Not a valid shift: {e}'
     assert isinstance(adjust, int) or adjust is None, f'adjust = `{adjust}` should be int, but it is `{type(adjust)}`'
-    
+
     if adjust == 0: adjust = None
 
     if os.path.exists(settingsDir):
-        if overwrite == 'ask' or overwrite =='a': 
+        if overwrite == 'ask' or overwrite == 'a':
             what = input(f'`{settingsDir}` already exists. Overwrite (y/n)?: ')
             if not (what.lower() == 'y' or what.lower() == 'yes'): return
-        elif not (overwrite == 'true' or overwrite =='y' or overwrite =='yes' or overwrite is True): return
-    
+        elif not (overwrite == 'true' or overwrite == 'y' or overwrite == 'yes' or overwrite is True): return
+
     with open(settingsDir, 'w') as f:
         f.write(f'{scale},{shift},{adjust},{normalized}')
     if log is True: print(f"Saved scale = `{scale}`, shift = `{shift}`, adjust = `{adjust}` to `{settingsDir}`")
