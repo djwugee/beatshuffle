@@ -90,6 +90,8 @@ def generate(audio: np.ndarray, sr: int, lib='madmom.BeatDetectionProcessor', ca
     # generate the beatmap
     if beatmap is None:
         if 'madmom' in lib.lower():
+            # Debug statements
+            print(f'len(audio)={len(audio)}, sr={sr}')
             assert len(audio) > sr * 2, f'Audio file is too short, len={len(audio)} samples, or {len(audio) / sr} seconds. Minimum length is 2 seconds, audio below that breaks madmom processors.'
 
         rnn_processor = madmom.features.beats.RNNBeatProcessor()
@@ -201,7 +203,7 @@ def generate(audio: np.ndarray, sr: int, lib='madmom.BeatDetectionProcessor', ca
                 beatmap = np.sort(np.absolute(beatmap - int(settings)))
 
     return beatmap
-
+    
 def save_settings(audio: np.ndarray, filename: str = None, lib: str = 'madmom.BeatDetectionProcessor', scale: float = None, shift: float = None, adjust: int = None, normalized: str = None, log=True, overwrite='ask'):
     if isinstance(overwrite, str): overwrite = overwrite.lower()
     audio_id = hex(len(audio))
