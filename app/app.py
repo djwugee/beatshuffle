@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from beat_manipulator import beatswap
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='static')
 
 def check_ffmpeg():
     try:
