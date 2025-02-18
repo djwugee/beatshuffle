@@ -177,7 +177,7 @@ def process_audio():
 
 @app.route('/progressier.js')
 def serve_progressier():
-    return send_from_directory(app.static_folder, 'progressier.js')
+    return send_file('progressier.js')
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)
