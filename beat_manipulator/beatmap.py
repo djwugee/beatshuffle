@@ -95,45 +95,85 @@ def generate(audio: np.ndarray, sr: int, lib='madmom.BeatDetectionProcessor', ca
         if lib == 'madmom.BeatTrackingProcessor':
             proc = madmom.features.beats.BeatTrackingProcessor(fps=100)
             act = madmom.features.beats.RNNBeatProcessor()(madmom.audio.signal.Signal(audio.T, sr))
-            beatmap = proc(act) * sr
+            proc_result = proc(act)
+            if proc_result is not None:
+                beatmap = proc_result * sr
+            else:
+                raise ValueError("proc(act) returned None, unable to generate beatmap.")
         elif lib == 'madmom.BeatTrackingProcessor.constant':
             proc = madmom.features.beats.BeatTrackingProcessor(fps=100, look_ahead=None)
             act = madmom.features.beats.RNNBeatProcessor()(madmom.audio.signal.Signal(audio.T, sr))
-            beatmap = proc(act) * sr
+            proc_result = proc(act)
+            if proc_result is not None:
+                beatmap = proc_result * sr
+            else:
+                raise ValueError("proc(act) returned None, unable to generate beatmap.")
         elif lib == 'madmom.BeatTrackingProcessor.consistent':
             proc = madmom.features.beats.BeatTrackingProcessor(fps=100, look_ahead=None, look_aside=0)
             act = madmom.features.beats.RNNBeatProcessor()(madmom.audio.signal.Signal(audio.T, sr))
-            beatmap = proc(act) * sr
+            proc_result = proc(act)
+            if proc_result is not None:
+                beatmap = proc_result * sr
+            else:
+                raise ValueError("proc(act) returned None, unable to generate beatmap.")
         elif lib == 'madmom.BeatDetectionProcessor':
             histogram_processor = TempoHistogramProcessor(min_bpm=40, max_bpm=200)
             proc = TempoEstimationProcessor(histogram_processor=histogram_processor)
             act = madmom.features.beats.RNNBeatProcessor()(madmom.audio.signal.Signal(audio.T, sr))
-            beatmap = proc(act) * sr
+            proc_result = proc(act)
+            if proc_result is not None:
+                beatmap = proc_result * sr
+            else:
+                raise ValueError("proc(act) returned None, unable to generate beatmap.")
         elif lib == 'madmom.BeatDetectionProcessor.consistent':
             proc = madmom.features.beats.BeatDetectionProcessor(fps=100, look_aside=0)
             act = madmom.features.beats.RNNBeatProcessor()(madmom.audio.signal.Signal(audio.T, sr))
-            beatmap = proc(act) * sr
+            proc_result = proc(act)
+            if proc_result is not None:
+                beatmap = proc_result * sr
+            else:
+                raise ValueError("proc(act) returned None, unable to generate beatmap.")
         elif lib == 'madmom.CRFBeatDetectionProcessor':
             proc = madmom.features.beats.CRFBeatDetectionProcessor(fps=100)
             act = madmom.features.beats.RNNBeatProcessor()(madmom.audio.signal.Signal(audio.T, sr))
-            beatmap = proc(act) * sr
+            proc_result = proc(act)
+            if proc_result is not None:
+                beatmap = proc_result * sr
+            else:
+                raise ValueError("proc(act) returned None, unable to generate beatmap.")
         elif lib == 'madmom.CRFBeatDetectionProcessor.constant':
             proc = madmom.features.beats.CRFBeatDetectionProcessor(fps=100, use_factors=True, factors=[0.5, 1, 2])
             act = madmom.features.beats.RNNBeatProcessor()(madmom.audio.signal.Signal(audio.T, sr))
-            beatmap = proc(act) * sr
+            proc_result = proc(act)
+            if proc_result is not None:
+                beatmap = proc_result * sr
+            else:
+                raise ValueError("proc(act) returned None, unable to generate beatmap.")
         elif lib == 'madmom.DBNBeatTrackingProcessor':
             proc = madmom.features.beats.DBNBeatTrackingProcessor(fps=100)
             act = madmom.features.beats.RNNBeatProcessor()(madmom.audio.signal.Signal(audio.T, sr))
-            beatmap = proc(act) * sr
+            proc_result = proc(act)
+            if proc_result is not None:
+                beatmap = proc_result * sr
+            else:
+                raise ValueError("proc(act) returned None, unable to generate beatmap.")
         elif lib == 'madmom.DBNBeatTrackingProcessor.1000':
             proc = madmom.features.beats.DBNBeatTrackingProcessor(fps=100, transition_lambda=1000)
             act = madmom.features.beats.RNNBeatProcessor()(madmom.audio.signal.Signal(audio.T, sr))
-            beatmap = proc(act) * sr
+            proc_result = proc(act)
+            if proc_result is not None:
+                beatmap = proc_result * sr
+            else:
+                raise ValueError("proc(act) returned None, unable to generate beatmap.")
         elif lib == 'madmom.DBNDownBeatTrackingProcessor':
             proc = madmom.features.downbeats.DBNDownBeatTrackingProcessor(beats_per_bar=[4], fps=100)
             act = madmom.features.downbeats.RNNDownBeatProcessor()(madmom.audio.signal.Signal(audio.T, sr))
-            beatmap = proc(act) * sr
-            beatmap = beatmap[:, 0]
+            proc_result = proc(act)
+            if proc_result is not None:
+                beatmap = proc_result * sr
+                beatmap = beatmap[:, 0]
+            else:
+                raise ValueError("proc(act) returned None, unable to generate beatmap.")
         elif lib == 'madmom.PatternTrackingProcessor':  # broken
             from madmom.models import PATTERNS_BALLROOM
             proc = madmom.features.downbeats.PatternTrackingProcessor(PATTERNS_BALLROOM, fps=50)
@@ -144,20 +184,28 @@ def generate(audio: np.ndarray, sr: int, lib='madmom.BeatDetectionProcessor', ca
             mb = MultiBandSpectrogramProcessor(crossover_frequencies=[270])
             pre_proc = SequentialProcessor([log, diff, mb])
             act = pre_proc(madmom.audio.signal.Signal(audio.T, sr))
-            beatmap = proc(act) * sr
-            beatmap = beatmap[:, 0]
+            proc_result = proc(act)
+            if proc_result is not None:
+                beatmap = proc_result * sr
+                beatmap = beatmap[:, 0]
+            else:
+                raise ValueError("proc(act) returned None, unable to generate beatmap.")
         elif lib == 'madmom.DBNBarTrackingProcessor':  # broken
             beats = generate(audio=audio, sr=sr, filename=filename, lib='madmom.DBNBeatTrackingProcessor', caching=caching)
             proc = madmom.features.downbeats.DBNBarTrackingProcessor(beats_per_bar=[4], fps=100)
             act = madmom.features.downbeats.RNNBarProcessor()(((madmom.audio.signal.Signal(audio.T, sr)), beats))
-            beatmap = proc(act) * sr
+            proc_result = proc(act)
+            if proc_result is not None:
+                beatmap = proc_result * sr
+            else:
+                raise ValueError("proc(act) returned None, unable to generate beatmap.")
         elif lib == 'librosa':  # broken in 3.9, works in 3.8
             import librosa
             beat_frames = librosa.beat.beat_track(y=audio[0], sr=sr, hop_length=512)
             beatmap = librosa.frames_to_samples(beat_frames[1])
 
         # save the beatmap and return
-        if caching is True: 
+        if caching is True:
             np.savetxt(cacheDir, beatmap.astype(int), fmt='%d')
         if not isinstance(beatmap, np.ndarray):
             beatmap = np.asarray(beatmap, dtype=int)
@@ -169,15 +217,14 @@ def generate(audio: np.ndarray, sr: int, lib='madmom.BeatDetectionProcessor', ca
         if os.path.exists(settingsDir):
             with open(settingsDir, 'r') as f:
                 settings = f.read().split(',')
-            if settings[0] != 'None': 
+            if settings[0] != 'None':
                 beatmap = scale(beatmap, settings[0], log=False)
-            if settings[1] != 'None': 
+            if settings[1] != 'None':
                 beatmap = shift(beatmap, settings[1], log=False)
-            if settings[2] != 'None': 
+            if settings[2] != 'None':
                 beatmap = np.sort(np.absolute(beatmap - int(settings[2])))
 
     return beatmap
-
 
 def save_settings(audio: np.ndarray, filename: str = None, lib: str = 'madmom.BeatDetectionProcessor', scale: float = None, shift: float = None, adjust: int = None, normalized: str = None, log = True, overwrite = 'ask'):
     if isinstance(overwrite, str): overwrite = overwrite.lower()
