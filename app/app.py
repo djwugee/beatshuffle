@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from beat_manipulator import beatswap
 
-app = Flask(__name__, static_folder='static')
+app = Flask(__name__)
 
 def check_ffmpeg():
     try:
@@ -175,9 +175,6 @@ def process_audio():
             except Exception as e:
                 logger.error(f"Error cleaning up temporary directory: {str(e)}")
 
-@app.route('/progressier.js')
-def serve_progressier():
-    return send_file('progressier.js')
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)
