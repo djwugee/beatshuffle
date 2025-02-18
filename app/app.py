@@ -175,5 +175,9 @@ def process_audio():
             except Exception as e:
                 logger.error(f"Error cleaning up temporary directory: {str(e)}")
 
+@app.route('/progressier.js')
+def serve_progressier():
+    return send_from_directory(app.static_folder, 'progressier.js')
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)
