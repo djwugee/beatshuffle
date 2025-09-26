@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Beat Manipulator JS</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1>Beat Manipulator JS</h1>
+    <p>Ported to JavaScript using WebGPU and Web Workers.</p>
+
+    <div class="container">
+        <div class="controls">
+            <h2>Controls</h2>
+            <div class="control-group">
+                <label for="audio-file">Upload Audio File:</label>
+                <input type="file" id="audio-file" accept="audio/*">
+            </div>
+            <div class="control-group">
+                <label for="pattern">Manipulation Pattern:</label>
+                <textarea id="pattern" rows="4">1, 2, 3, 4</textarea>
+            </div>
+            <button id="process-button">Process Audio</button>
+        </div>
+
+        <div class="output">
+            <h2>Output</h2>
+            <div id="status">Please upload a file and press "Process".</div>
+            <audio id="output-audio" controls></audio>
+            <a id="download-link" style="display: none;">Download Processed Audio</a>
+        </div>
+    </div>
+
+    <script src="main.js"></script>
+</body>
+</html>
