@@ -1,218 +1,160 @@
-# pylint: disable=no-member,no-value-for-parameter,no-name-in-module
-import gradio as gr
+from flask import Flask, render_template, request, jsonify, send_file
 import numpy as np
-from gradio.components import Audio, Textbox, Checkbox, Image, Dropdown
-import beat_manipulator as bm
-import cv2
 import yaml
+import sys
+import os
+import soundfile as sf
+import subprocess
+import tempfile
+import io
+import logging
+import traceback
+import shutil
+import time
+from beat_manipulator import beatswap
 
-const port = process.env.PORT || 4000;
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
+app = Flask(__name__)
+
+def check_ffmpeg():
+    try:
+        subprocess.run(['ffmpeg', '-version'], capture_output=True)
+        return True
+    except FileNotFoundError:
+        return False
 
 def load_presets():
     with open('beat_manipulator/presets.yaml', 'r') as f:
         presets = yaml.safe_load(f)
     return presets
 
-def update_fields(preset_name):
+def get_preset_pattern(preset_name):
+    """Get the pattern for a preset, or return None if not found"""
     if preset_name == "None":
-        return [gr.update(), gr.update(), gr.update()]
+        return "test"
     presets = load_presets()
     if preset_name in presets:
-        preset = presets[preset_name]
-        pattern = preset.get('pattern', '')
-        scale = preset.get('scale', [1])[0] if isinstance(preset.get('scale', [1]), list) else preset.get('scale', 1)
-        shift = preset.get('shift', 0)
-        return [pattern, scale, shift]
-    return [gr.update(), gr.update(), gr.update()]
+        return presets[preset_name].get('pattern', 'test')
+    return None
 
-def BeatSwap(audiofile, preset_name: str = "None", pattern: str = 'test', scale: float = 1, shift: float = 0, caching: bool = True, variableBPM: bool = False):
-    print()
-    print(f'path = {audiofile}, preset = "{preset_name}", pattern = "{pattern}", scale = {scale}, shift = {shift}, caching = {caching}, variable BPM = {variableBPM}')
-    
-    # Apply preset if selected
-    if preset_name != "None":
-        presets = load_presets()
-        if preset_name in presets:
-            preset = presets[preset_name]
-            pattern = preset.get('pattern', pattern)
-            if 'scale' in preset:
-                scale = preset['scale'][0] if isinstance(preset['scale'], list) else preset['scale']
-            if 'shift' in preset:
-                shift = preset.get('shift', shift)
-    
-    if pattern == '' or pattern is None: 
-        pattern = 'test'
-    if caching is not False: 
-        caching = True
-    if variableBPM is not True: 
-        variableBPM = False
-    if 'random' in pattern.lower(): 
-        pattern = 'random'
-    
+@app.route('/')
+def index():
+    presets = load_presets()
+    preset_choices = ["None"] + list(presets.keys())
+    return render_template('index.html', preset_choices=preset_choices)
+
+@app.route('/process', methods=['POST'])
+def process_audio():
+    temp_dir = None
+    response = None
     try:
-        scale = bm.utils._safer_eval(scale)
-    except:
-        scale = 1
+        logger.info("Starting audio processing")
         
-    try:
-        shift = bm.utils._safer_eval(shift)
-    except:
-        shift = 0
+        if not check_ffmpeg():
+            logger.error("FFmpeg not found")
+            return jsonify({'error': 'FFmpeg is not installed. Please install FFmpeg to process audio files.'}), 500
+
+        temp_dir = tempfile.mkdtemp()
+        logger.info(f"Created temporary directory: {temp_dir}")
         
-    if scale < 0: 
-        scale = -scale
-    if scale < 0.02: 
-        scale = 0.02
-        
-    print('Loading audiofile...')
-    if audiofile is not None:
+        audiofile = request.files['audiofile']
+        if not audiofile:
+            logger.error("No audio file provided")
+            return jsonify({'error': 'No audio file provided'}), 400
+
         try:
-            song = bm.song(audio=audiofile, log=False)
+            preset_name = request.form.get('preset_name', "None")
+            pattern = request.form.get('pattern', 'test')
+
+            if preset_name != "None":
+                preset_pattern = get_preset_pattern(preset_name)
+                if preset_pattern:
+                    pattern = preset_pattern
+
+            try:
+                scale = float(request.form.get('scale', 1))
+                if scale <= 0:
+                    scale = 1
+            except (ValueError, TypeError):
+                scale = 1
+
+            try:
+                shift = float(request.form.get('shift', 0))
+            except (ValueError, TypeError):
+                shift = 0
+
+            caching = request.form.get('caching', 'true').lower() == 'true'
+            variableBPM = request.form.get('variableBPM', 'false').lower() == 'true'
+
+            logger.info(f"Processing parameters: preset={preset_name}, pattern={pattern}, scale={scale}, shift={shift}")
+
+            input_path = os.path.join(temp_dir, 'input' + os.path.splitext(audiofile.filename)[1])
+            audiofile.save(input_path)
+            logger.info(f"Saved input file to: {input_path}")
+
+            output_path = os.path.join(temp_dir, 'output.wav')
+            logger.info("Starting beatswap processing")
+
+            result = beatswap(
+                audio=input_path,
+                pattern=pattern,
+                scale=scale,
+                shift=shift,
+                output=output_path,
+                log=True
+            )
+            logger.info("Beatswap processing completed")
+
+            if isinstance(result, str) and os.path.exists(result):
+                output_path = result
+            elif isinstance(result, tuple):
+                audio_data, sr = result
+                sf.write(output_path, audio_data.T, sr)
+            else:
+                sf.write(output_path, result.T if isinstance(result, np.ndarray) else result, 44100)
+
+            if os.path.exists(output_path):
+                logger.info("Sending processed audio file")
+                temp_output = os.path.join(temp_dir, 'final_output.wav')
+                shutil.copy2(output_path, temp_output)
+                
+                response = send_file(
+                    temp_output,
+                    mimetype='audio/wav',
+                    as_attachment=True,
+                    download_name='processed.wav'
+                )
+                
+                response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+                response.headers['Pragma'] = 'no-cache'
+                response.headers['Expires'] = '0'
+                
+                return response
+            else:
+                logger.error("Output file not found")
+                return jsonify({'error': 'Failed to generate output file'}), 500
+
         except Exception as e:
-            print(f'Failed to load audio, retrying: {e}')
-            song = bm.song(audio=audiofile, log=False)
-    else: 
-        print(f'Audiofile is {audiofile}')
-        return
-    
-    try:
-        print(f'Scale = {scale}, shift = {shift}, length = {len(song.audio[0]) / song.sr}')
-        if len(song.audio[0]) > (song.sr * 1800):
-            song.audio = np.array(song.audio, copy=False)
-            song.audio = song.audio[:, :song.sr * 1800]
-    except Exception as e: 
-        print(f'Reducing audio size failed, why? {e}')
-        
-    lib = 'madmom.BeatDetectionProcessor' if variableBPM is False else 'madmom.BeatTrackingProcessor'
-    song.path = '.'.join(song.path.split('.')[:-1])[:-8] + '.' + song.path.split('.')[-1]
-    print(f'path: {song.path}')
-    print('Generating beatmap...')
-    song.beatmap_generate(lib=lib, caching=caching)
-    song.beatmap_shift(shift)
-    song.beatmap_scale(scale)
-    print('Generating image...')
-    
-    try:
-        song.image_generate()
-        image = bm.image.bw_to_colored(song.image)
-        y = min(len(image), len(image[0]), 2048)
-        y = max(y, 2048)
-        image = np.rot90(np.clip(cv2.resize(image, (y, y), interpolation=cv2.INTER_LINEAR), -1, 1))
-    except Exception as e: 
-        print(f'Image generation failed: {e}')
-        image = np.asarray([[0.5, -0.5], [-0.5, 0.5]])
-        
-    print('Beatswapping...')
-    song.beatswap(pattern=pattern, scale=1, shift=0)
-    song.audio = (np.clip(np.asarray(song.audio), -1, 1) * 32766).astype(np.int16).T
-    print('___ SUCCESS ___')
-    return ((song.sr, song.audio), image)
+            error_msg = f"Processing error: {str(e)}\n{traceback.format_exc()}"
+            logger.error(error_msg)
+            return jsonify({'error': error_msg}), 500
 
-# Load presets for dropdown
-presets = load_presets()
-preset_choices = ["None"] + list(presets.keys())
+    except Exception as e:
+        error_msg = f"Server error: {str(e)}\n{traceback.format_exc()}"
+        logger.error(error_msg)
+        return jsonify({'error': error_msg}), 500
 
-# Custom CSS for better styling
-custom_css = """
-.container { max-width: 1200px; margin: auto; }
-.title { text-align: center; margin-bottom: 2rem; }
-.title h1 { color: #2196F3; margin-bottom: 0.5rem; }
-.title p { font-size: 1.1rem; color: #666; }
-.links { margin-top: 1rem; }
-.links a { color: #2196F3; text-decoration: none; margin-right: 1rem; }
-.links a:hover { text-decoration: underline; }
-.input-section { background: #f5f5f5; padding: 1.5rem; border-radius: 8px; }
-.output-section { background: #f8f8f8; padding: 1.5rem; border-radius: 8px; }
-.process-btn { background: #2196F3 !important; color: white !important; }
-.process-btn:hover { background: #1976D2 !important; }
-"""
+    finally:
+        if temp_dir and os.path.exists(temp_dir):
+            try:
+                time.sleep(0.1)
+                shutil.rmtree(temp_dir, ignore_errors=True)
+                logger.info(f"Cleaned up temporary directory: {temp_dir}")
+            except Exception as e:
+                logger.error(f"Error cleaning up temporary directory: {str(e)}")
 
-# Create interface using Blocks
-with gr.Blocks(theme=gr.themes.Soft(), css=custom_css) as interface:
-    with gr.Column(elem_classes="container"):
-        # Title Section
-        with gr.Column(elem_classes="title"):
-            gr.Markdown("""# Stunlocked's Beat Manipulator""")
-            gr.Markdown("""Remix music using AI-powered beat detection and advanced beat swapping. 
-                Make "every other beat is missing" remixes, or completely change beat of the song.""")
-            with gr.Row(elem_classes="links"):
-                gr.Markdown("""[Github](https://github.com/stunlocked1/beat_manipulator) | 
-                    [Colab Version](https://colab.research.google.com/drive/1gEsZCCh2zMKqLmaGH5BPPLrImhEGVhv3?usp=sharing)""")
-    
-        with gr.Row(equal_height=True):
-            # Input Section
-            with gr.Column(elem_classes="input-section"):
-                gr.Markdown("### Input Settings")
-                audiofile = Audio(type='filepath', label="Upload Audio", scale=1)
-                
-                with gr.Group():
-                    gr.Markdown("#### Preset & Pattern")
-                    presetbox = Dropdown(
-                        choices=preset_choices, 
-                        value="None", 
-                        label="Select Preset", 
-                        type="value"
-                    )
-                    patternbox = Textbox(
-                        label="Pattern",
-                        placeholder="1, 3, 2, 4!",
-                        value="1, 2>0.5, 3, 4>0.5, 5, 6>0.5, 3, 4>0.5, 7, 8",
-                        lines=1
-                    )
-                
-                with gr.Group():
-                    gr.Markdown("#### Beat Settings")
-                    scalebox = Textbox(
-                        value=1,
-                        label="Beatmap Scale",
-                        info="At 2, every two beat positions will be merged, at 0.5 - a beat position added between every two existing ones.",
-                        placeholder=1,
-                        lines=1
-                    )
-                    shiftbox = Textbox(
-                        value=0,
-                        label="Beatmap Shift",
-                        info="Shift in beats (applies before scaling)",
-                        placeholder=0,
-                        lines=1
-                    )
-                
-                with gr.Group():
-                    gr.Markdown("#### Advanced Options")
-                    cachebox = Checkbox(
-                        value=True,
-                        label="Enable Caching",
-                        info="Save generated beatmaps for faster loading"
-                    )
-                    beatdetectionbox = Checkbox(
-                        value=False,
-                        label="Variable BPM Support",
-                        info="Enables support for variable BPM (slightly less accurate)"
-                    )
-                
-                btn = gr.Button("Process Audio", elem_classes="process-btn")
-            
-            # Output Section
-            with gr.Column(elem_classes="output-section"):
-                gr.Markdown("### Output")
-                audio_output = Audio(
-                    type='numpy',
-                    format="mp3",
-                    label="Processed Audio"
-                )
-                image_output = Image(
-                    type='numpy',
-                    label="Beat Visualization",
-                    elem_id="beat-image"
-                )
-    
-    # Add event handlers
-    presetbox.change(fn=update_fields, inputs=[presetbox], outputs=[patternbox, scalebox, shiftbox])
-    btn.click(
-        fn=BeatSwap,
-        inputs=[audiofile, presetbox, patternbox, scalebox, shiftbox, cachebox, beatdetectionbox],
-        outputs=[audio_output, image_output]
-    )
-    
-
-interface.launch(share=False)
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5001, debug=True)
