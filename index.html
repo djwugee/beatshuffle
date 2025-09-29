@@ -1,0 +1,1096 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Beatshuffle by WuG - Client-Side Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://unpkg.com/wavesurfer.js@7.8.0-beta.2"></script>
+    <script src="https://unpkg.com/wavesurfer.js@7.8.10/dist/plugins/regions.min.js"></script>
+    <script src="https://unpkg.com/wavesurfer-multitrack/dist/multitrack.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #1c1c1c;
+            margin: 0;
+            padding: 20px;
+            color: #fff;
+        }
+        #waveform {
+            width: 80%;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(255, 255, 255, 0.1);
+            margin: 0 auto;
+        }
+        button {
+            background-color: #8b008b;
+            border: none;
+            color: #fff;
+            padding: 10px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 20px;
+            box-shadow: 0 4px 6px rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+            width: 100%;
+            max-width: 120px;
+        }
+        button:hover {
+            background-color: #ff69b4;
+            box-shadow: 0 8px 12px rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+        button:disabled {
+            background-color: #333;
+            cursor: not-allowed;
+        }
+        button i {
+            display: block;
+            margin: auto;
+        }
+        input[type="file"] {
+            display: none;
+        }
+        .upload-label {
+            background-color: #8b008b;
+            border: none;
+            color: #fff;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 20px;
+            box-shadow: 0 4px 6px rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+            width: 100%;
+            max-width: 120px;
+        }
+        .upload-label:hover {
+            background-color: #ff69b4;
+            box-shadow: 0 8px 12px rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 10px;
+            background: #8b008b;
+            outline: none;
+            opacity: 0.7;
+            transition: opacity .15s ease-in-out;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #ff69b4;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: #ff69b4;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+        #cntrlbuttons {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            margin-top: 10px;
+            width: 100%;
+            max-width: 900px;
+            margin: 10px auto;
+        }
+        #track-controls-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+        }
+        #track-controls-container > input[type="range"] {
+            width: 100%;
+            margin: 0 auto;
+        }
+        #wavcontrols {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            margin: 0 auto;
+        }
+        .individualcntrls {
+            width: 100%;
+            height: 130px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(255, 255, 255, 0.1);
+            margin: 10px 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 5px;
+            background-color: #2c2c2c;
+            margin: 5px;
+        }
+        .track-control {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+        .track-control-buttons {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+        }
+        .track-control-sliders {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            width: 100%;
+            margin-top: 10px;
+        }
+        .track-control i {
+            margin-right: 10px;
+        }
+        .track-control input[type="range"] {
+            flex-grow: 1;
+            margin-left: 0px;
+        }
+        #individualcntrls-container {
+            width: 20%;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(255, 255, 255, 0.1);
+            margin: 10px 10px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 10px;
+            background-color: #2c2c2c;
+        }
+        a.download-link {
+            display: inline-block;
+            margin-top: 1rem;
+            padding: 0.5rem 1rem;
+            background-color: #28a745;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+        }
+        a.download-link:hover {
+            background-color: #218838;
+        }
+    </style>
+</head>
+<body style="background-color: #2c2c2c;" class="text-white min-h-screen flex flex-col items-center py-10">
+    <div class="w-full max-w-2xl bg-gray-800 rounded-lg shadow-lg p-6" id="targetDiv">
+        <h1 class="text-2xl font-bold text-center mb-6">BeatShuffler by djwugee</h1>
+
+        <form id="audioForm" enctype="multipart/form-data" class="space-y-4">
+            <div class="form-group">
+                <label for="audiofile" class="block text-sm font-medium mb-2">
+                    <i class="fas fa-upload"></i> Upload Audio File:
+                </label>
+                <input type="file" id="audiofile" name="audiofile" accept="audio/*" required
+                    class="block w-full text-sm text-gray-300 bg-gray-700 border border-gray-600 rounded-lg file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:bg-gray-600 file:text-gray-300 hover:file:bg-gray-500">
+                <small class="text-gray-400">Supported formats: MP3, WAV, OGG, FLAC</small>
+            </div>
+
+            <div class="form-group">
+                <label for="preset_name" class="block text-sm font-medium mb-2">
+                    <i class="fas fa-list"></i> Select Preset:
+                </label>
+                <select id="preset_name" name="preset_name"
+                    class="block w-full text-sm text-gray-300 bg-gray-700 border border-gray-600 rounded-lg p-2.5">
+                </select>
+                <small class="text-gray-400">Choose a preset pattern or customize below</small>
+            </div>
+
+            <div class="form-group">
+                <label for="pattern" class="block text-sm font-medium mb-2">
+                    <i class="fas fa-wave-square"></i> Pattern:
+                </label>
+                <input type="text" id="pattern" name="pattern" value=""
+                    class="block w-full text-sm text-gray-300 bg-gray-700 border border-gray-600 rounded-lg p-2">
+                <small class="text-gray-400">Example: "i, i+1r". See presets for full syntax.</small>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="form-group">
+                    <label for="scale" class="block text-sm font-medium mb-2">
+                        <i class="fas fa-compress"></i> Scale:
+                    </label>
+                    <input type="number" id="scale" name="scale" value="1" step="0.1" min="0.1"
+                        class="block w-full text-sm text-gray-300 bg-gray-700 border border-gray-600 rounded-lg p-2">
+                    <small class="text-gray-400">Affects beat detection spacing (e.g., 0.5 = 2x faster)</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="shift" class="block text-sm font-medium mb-2">
+                        <i class="fas fa-arrows-alt-h"></i> Shift (seconds):
+                    </label>
+                    <input type="number" id="shift" name="shift" value="0" step="0.01"
+                        class="block w-full text-sm text-gray-300 bg-gray-700 border border-gray-600 rounded-lg p-2">
+                    <small class="text-gray-400">Shifts beat positions (e.g., 0.1 = 100ms forward)</small>
+                </div>
+            </div>
+
+            <button type="submit" id="submitBtn"
+                class="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-md">
+                <i class="fas fa-play-circle"></i> Process Audio
+            </button>
+        </form>
+
+        <div id="output" class="mt-6">
+            <h2 class="text-xl font-bold mb-4">Output</h2>
+            <div id="loading" class="hidden">
+                <div class="flex items-center space-x-2">
+                    <i class="fas fa-spinner fa-spin text-blue-500 text-2xl"></i>
+                    <p>Processing audio... This may take a few moments.</p>
+                </div>
+                <p class="text-gray-400 processing-step mt-2 text-sm"></p>
+            </div>
+            <audio id="audio-player" controls class="hidden mt-4 w-full rounded-lg"></audio>
+            <div id="error-message" class="hidden mt-4 text-red-500"></div>
+            <a id="downloadBtn" href="#" style="display: none;" class="download-link">
+                Download Processed Audio
+            </a>
+        </div>
+    </div>
+
+    <div id="wavcontrols" class="w-full max-w-2xl bg-gray-700 rounded-lg shadow-lg p-4 mt-8">
+        <div id="waveform"></div>
+        <div id="individualcntrls-container"></div>
+    </div>
+    <div id="track-controls-container" class="w-full max-w-2xl bg-gray-700 rounded-lg shadow-lg p-4">
+        <input type="range" min="10" max="100" value="10" />
+        <div id="cntrlbuttons">
+            <label for="track-upload" class="upload-label">
+                <i class="fas fa-upload icon"></i>
+            </label>
+            <input type="file" id="track-upload" multiple />
+            <button id="play" disabled><i class="fas fa-play icon"></i></button>
+            <button id="forward"><i class="fas fa-forward icon"></i></button>
+            <button id="backward"><i class="fas fa-backward icon"></i></button>
+            <button id="zoomIn"><i class="fas fa-search-plus icon"></i></button>
+            <button id="zoomOut"><i class="fas fa-search-minus icon"></i></button>
+        </div>
+    </div>
+
+    <script type="module">
+        const workerCode = `
+'use strict';
+
+// ================================================================
+// INLINED SHADER CODE & GPU HELPERS (UNCHANGED)
+// ================================================================
+
+const envelopeWgsl = \`
+@group(0) @binding(0) var<storage, read> input_signal: array<f32>;
+@group(0) @binding(1) var<storage, read_write> output_envelope: array<f32>;
+struct Params { window_size: u32, };
+@group(0) @binding(2) var<uniform> params: Params;
+@compute @workgroup_size(256)
+fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
+    let i = global_id.x;
+    let signal_length = arrayLength(&input_signal);
+    if (i >= signal_length) { return; }
+    var sum = 0.0;
+    let half_window = params.window_size / 2u;
+    let start = max(0, i - half_window);
+    let end = min(signal_length - 1u, i + half_window);
+    for (var j = start; j <= end; j = j + 1u) { sum = sum + abs(input_signal[j]); }
+    output_envelope[i] = sum / f32(end - start + 1u);
+}
+\`;
+const fftWgsl = \`
+struct Params { transform_size: u32, stage: u32, };
+@group(0) @binding(0) var<storage, read_write> data: array<f32>;
+@group(0) @binding(1) var<uniform> params: Params;
+const PI: f32 = 3.141592653589793;
+@compute @workgroup_size(64)
+fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
+    let i = global_id.x;
+    if (i >= params.transform_size / 2u) { return; }
+    let half_m = 1u << params.stage;
+    let m = half_m * 2u;
+    let k = i % half_m;
+    let j_base = (i - k) * 2u;
+    let j1 = j_base + k;
+    let j2 = j_base + k + half_m;
+    let angle = -2.0 * PI * f32(k) / f32(m);
+    let twiddle_real = cos(angle);
+    let twiddle_imag = sin(angle);
+    let val1_real = data[2u * j1];
+    let val1_imag = data[2u * j1 + 1u];
+    let val2_real = data[2u * j2];
+    let val2_imag = data[2u * j2 + 1u];
+    let twiddled_real = val2_real * twiddle_real - val2_imag * twiddle_imag;
+    let twiddled_imag = val2_real * twiddle_imag + val2_imag * twiddle_real;
+    let result1_real = val1_real + twiddled_real;
+    let result1_imag = val1_imag + twiddled_imag;
+    let result2_real = val1_real - twiddled_real;
+    let result2_imag = val1_imag - twiddled_imag;
+    data[2u * j1] = result1_real;
+    data[2u * j1 + 1u] = result1_imag;
+    data[2u * j2] = result2_real;
+    data[2u * j2 + 1u] = result2_imag;
+}
+\`;
+const spectralFluxWgsl = \`
+@group(0) @binding(0) var<storage, read> prev_spectrum: array<f32>;
+@group(0) @binding(1) var<storage, read> current_spectrum: array<f32>;
+@group(0) @binding(2) var<storage, read_write> output: array<f32>;
+@compute @workgroup_size(256)
+fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
+    let i = global_id.x;
+    let spectrum_size = arrayLength(&current_spectrum);
+    if (i >= spectrum_size) { return; }
+    let diff = current_spectrum[i] - prev_spectrum[i];
+    let rectified_diff = max(0.0, diff);
+    output[i] = rectified_diff;
+}
+\`;
+async function initializeWebGPU() { if (!navigator.gpu) { throw new Error("WebGPU not supported on this browser."); } const adapter = await navigator.gpu.requestAdapter(); if (!adapter) { throw new Error("No appropriate GPUAdapter found."); } const device = await adapter.requestDevice(); if (!device) { throw new Error("No appropriate GPUDevice found."); } device.lost.then((info) => { console.error(\`WebGPU device was lost: \${info.message}\`); }); return { adapter, device }; }
+function createGPUBuffer(device, usage, data, label = 'GPU Buffer') { const buffer = device.createBuffer({ label, size: data.byteLength, usage: usage | GPUBufferUsage.COPY_DST, mappedAtCreation: true, }); const constructor = data.constructor; new constructor(buffer.getMappedRange()).set(data); buffer.unmap(); return buffer; }
+function createComputePipeline(device, shaderCode, entryPoint, label = 'Compute Pipeline') { const shaderModule = device.createShaderModule({ label: \`\${label} Shader Module\`, code: shaderCode, }); const pipeline = device.createComputePipeline({ label, layout: 'auto', compute: { module: shaderModule, entryPoint: entryPoint, }, }); return pipeline; }
+function executeComputePass(device, pipeline, buffers, workgroupCountX, label = 'Compute Pass') { const bindGroup = device.createBindGroup({ label: \`\${label} Bind Group\`, layout: pipeline.getBindGroupLayout(0), entries: buffers.map((buffer, i) => ({ binding: i, resource: { buffer }, })), }); const encoder = device.createCommandEncoder({ label: \`\${label} Command Encoder\` }); const pass = encoder.beginComputePass({ label }); pass.setPipeline(pipeline); pass.setBindGroup(0, bindGroup); pass.dispatchWorkgroups(workgroupCountX); pass.end(); device.queue.submit([encoder.finish()]); }
+async function readGPUBuffer(device, buffer) { const size = buffer.size; const readBuffer = device.createBuffer({ label: 'Readback Buffer', size, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ, }); const encoder = device.createCommandEncoder(); encoder.copyBufferToBuffer(buffer, 0, readBuffer, 0, size); device.queue.submit([encoder.finish()]); await readBuffer.mapAsync(GPUMapMode.READ); const data = readBuffer.getMappedRange().slice(0); readBuffer.unmap(); readBuffer.destroy(); return data; }
+function applyWindow(data) { const N = data.length; for (let i = 0; i < N; i++) { data[i] *= 0.5 * (1 - Math.cos(2 * Math.PI * i / (N - 1))); } }
+function bitReverse(data, transformSize) { const N = transformSize; for (let i = 0; i < N; i++) { let j = 0; let n = i; for (let b = 0; b < Math.log2(N); b++) { j = (j << 1) | (n & 1); n = n >> 1; } if (j > i) { const tempReal = data[i * 2]; const tempImag = data[i * 2 + 1]; data[i * 2] = data[j * 2]; data[i * 2 + 1] = data[j * 2 + 1]; data[j * 2] = tempReal; data[j * 2 + 1] = tempImag; } } }
+async function performFFT(device, audioChunk) { const transformSize = audioChunk.length; if ((transformSize & (transformSize - 1)) !== 0) { throw new Error('FFT transform size must be a power of 2.'); } applyWindow(audioChunk); const complexData = new Float32Array(transformSize * 2); for (let i = 0; i < transformSize; i++) { complexData[i * 2] = audioChunk[i]; complexData[i * 2 + 1] = 0; } bitReverse(complexData, transformSize); const pipeline = createComputePipeline(device, fftWgsl, 'main', 'FFT Pipeline'); const dataBuffer = createGPUBuffer(device, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC, complexData, 'FFT Data Buffer'); const paramsBuffer = device.createBuffer({ size: 8, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST, label: 'FFT Params Buffer', }); const numStages = Math.log2(transformSize); const workgroupCountX = transformSize / 2 / 64; for (let stage = 0; stage < numStages; stage++) { device.queue.writeBuffer(paramsBuffer, 0, new Uint32Array([transformSize, stage])); executeComputePass(device, pipeline, [dataBuffer, paramsBuffer], workgroupCountX, \`FFT Stage \${stage}\`); } const resultBuffer = await readGPUBuffer(device, dataBuffer); const resultData = new Float32Array(resultBuffer); const magnitude = new Float32Array(transformSize / 2); for (let i = 0; i < transformSize / 2; i++) { const real = resultData[i * 2]; const imag = resultData[i * 2 + 1]; magnitude[i] = Math.sqrt(real * real + imag * imag); } dataBuffer.destroy(); paramsBuffer.destroy(); return magnitude; }
+async function calculateOnsetNoveltyCurve(device, leftChannel, rightChannel, sampleRate) { const fftSize = 1024; const hopSize = 512; const workgroupSize = 256; self.postMessage({ type: 'status', payload: 'Starting onset detection...' }); const monoSignal = new Float32Array(leftChannel.length); for (let i = 0; i < leftChannel.length; i++) { monoSignal[i] = (leftChannel[i] + rightChannel[i]) / 2; } const fluxPipeline = createComputePipeline(device, spectralFluxWgsl, 'main', 'Spectral Flux Pipeline'); const spectrumSize = fftSize / 2; const prevSpectrumBuffer = createGPUBuffer(device, GPUBufferUsage.STORAGE, new Float32Array(spectrumSize), 'Previous Spectrum Buffer'); const currentSpectrumBuffer = createGPUBuffer(device, GPUBufferUsage.STORAGE, new Float32Array(spectrumSize), 'Current Spectrum Buffer'); const fluxResultBuffer = createGPUBuffer(device, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC, new Float32Array(spectrumSize), 'Flux Result Buffer'); const workgroupCountX = Math.ceil(spectrumSize / workgroupSize); const noveltyCurve = []; let prevSpectrum = new Float32Array(spectrumSize).fill(0); const numFrames = Math.floor((monoSignal.length - fftSize) / hopSize); self.postMessage({ type: 'status', payload: \`Processing \${numFrames} frames...\` }); for (let i = 0; i < numFrames; i++) { const frameStart = i * hopSize; const frameEnd = frameStart + fftSize; const audioFrame = monoSignal.slice(frameStart, frameEnd); const currentSpectrum = await performFFT(device, audioFrame); device.queue.writeBuffer(prevSpectrumBuffer, 0, prevSpectrum); device.queue.writeBuffer(currentSpectrumBuffer, 0, currentSpectrum); executeComputePass(device, fluxPipeline, [prevSpectrumBuffer, currentSpectrumBuffer, fluxResultBuffer], workgroupCountX, \`Flux Pass \${i}\`); const fluxResultData = await readGPUBuffer(device, fluxResultBuffer); const fluxValues = new Float32Array(fluxResultData); let spectralFlux = 0; for (let j = 0; j < fluxValues.length; j++) { spectralFlux += fluxValues[j]; } noveltyCurve.push(spectralFlux); prevSpectrum = currentSpectrum; if (i > 0 && i % 50 === 0) { self.postMessage({ type: 'status', payload: \`Processed frame \${i}/\${numFrames}\` }); } } prevSpectrumBuffer.destroy(); currentSpectrumBuffer.destroy(); fluxResultBuffer.destroy(); self.postMessage({ type: 'status', payload: 'Onset detection finished.' }); return new Float32Array(noveltyCurve); }
+async function calculateTempoByAutocorrelation(device, leftChannel, rightChannel, sampleRate) { self.postMessage({ type: 'status', payload: 'Starting autocorrelation tempo detection...' }); const downsampleFactor = 100; const envelopeWindowSize = 1024; const workgroupSize = 256; const monoSignal = new Float32Array(leftChannel.length); for (let i = 0; i < leftChannel.length; i++) { monoSignal[i] = (leftChannel[i] + rightChannel[i]) / 2; } const envelopePipeline = createComputePipeline(device, envelopeWgsl, 'main', 'Envelope Pipeline'); const inputBuffer = createGPUBuffer(device, GPUBufferUsage.STORAGE, monoSignal, 'Input Signal Buffer'); const outputBuffer = createGPUBuffer(device, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC, new Float32Array(monoSignal.length), 'Output Envelope Buffer'); const paramsBuffer = createGPUBuffer(device, GPUBufferUsage.UNIFORM, new Uint32Array([envelopeWindowSize]), 'Envelope Params Buffer'); const workgroupCountX = Math.ceil(monoSignal.length / workgroupSize); executeComputePass(device, envelopePipeline, [inputBuffer, outputBuffer, paramsBuffer], workgroupCountX, 'Envelope Pass'); const envelopeData = await readGPUBuffer(device, outputBuffer); const fullEnvelope = new Float32Array(envelopeData); inputBuffer.destroy(); outputBuffer.destroy(); paramsBuffer.destroy(); const downsampledLength = Math.floor(fullEnvelope.length / downsampleFactor); const downsampledEnvelope = new Float32Array(downsampledLength); for (let i = 0; i < downsampledLength; i++) { downsampledEnvelope[i] = fullEnvelope[i * downsampleFactor]; } const downsampledRate = sampleRate / downsampleFactor; self.postMessage({ type: 'status', payload: 'Performing autocorrelation on signal envelope...' }); const minLag = Math.floor(downsampledRate * 60 / 220); const maxLag = Math.floor(downsampledRate * 60 / 60); let bestLag = -1; let maxCorr = 0; for (let lag = minLag; lag < maxLag; lag++) { let correlation = 0; for (let i = 0; i < downsampledEnvelope.length - lag; i++) { correlation += downsampledEnvelope[i] * downsampledEnvelope[i + lag]; } if (correlation > maxCorr) { maxCorr = correlation; bestLag = lag; } } if (bestLag === -1) { self.postMessage({ type: 'status', payload: 'Autocorrelation could not find a clear tempo.' }); return 0; } const bpm = (60 * downsampledRate) / bestLag; self.postMessage({ type: 'status', payload: \`Autocorrelation found tempo: \${bpm.toFixed(2)} BPM.\` }); return bpm; }
+function findPeaks(noveltyCurve, hopSize, sampleRate) { self.postMessage({ type: 'status', payload: 'Finding peaks in novelty curve...' }); const meanWindowSize = 20; const waitFrames = 10; const preAvg = 10; const postAvg = 10; const delta = 0.1; const peaks = []; let wait = 0; for (let i = preAvg; i < noveltyCurve.length - postAvg; i++) { if (wait > 0) { wait--; continue; } let isMax = true; for (let j = -preAvg; j <= postAvg; j++) { if (noveltyCurve[i] < noveltyCurve[i + j]) { isMax = false; break; } } if (isMax) { let sum = 0; for (let j = i - meanWindowSize; j < i + meanWindowSize; j++) { sum += noveltyCurve[j] || 0; } const threshold = (sum / (meanWindowSize * 2)) + delta; if (noveltyCurve[i] > threshold) { const timeInSeconds = (i * hopSize) / sampleRate; peaks.push(timeInSeconds); wait = waitFrames; } } } self.postMessage({ type: 'status', payload: \`Found \${peaks.length} potential onsets.\` }); return peaks; }
+function correlateOnsets(onsets, sampleRate, scale = 1.0, shift = 0.0) { if (onsets.length < 10) { return { beatmap: onsets.map(t => Math.floor(t * sampleRate)), bpm: 0 }; } self.postMessage({ type: 'status', payload: 'Correlating onsets to find tempo...' }); const maxTime = onsets[onsets.length - 1]; const resolution = 100; const onsetSignal = new Float32Array(Math.ceil(maxTime * resolution)).fill(0); for (const time of onsets) { onsetSignal[Math.floor(time * resolution)] = 1; } const minLag = Math.floor(resolution * 60 / 200); const maxLag = Math.floor(resolution * 60 / 60); let bestLag = -1; let maxCorr = 0; for (let lag = minLag; lag < maxLag; lag++) { let correlation = 0; for (let i = 0; i < onsetSignal.length - lag; i++) { correlation += onsetSignal[i] * onsetSignal[i + lag]; } if (correlation > maxCorr) { maxCorr = correlation; bestLag = lag; } } if (bestLag === -1) { return { beatmap: onsets.map(t => Math.floor(t * sampleRate)), bpm: 0 }; } const bpm = (60 * resolution) / bestLag; const beatInterval = 60 / bpm; let bestPhase = 0; let maxAlignment = -1; for (let i = 0; i < Math.floor(beatInterval * 100); i++) { const phase = i / 100; let alignment = 0; for (const onset of onsets) { const distance = Math.abs(onset - (Math.round((onset - phase) / beatInterval) * beatInterval + phase)); if (distance < 0.05) { alignment++; } } if (alignment > maxAlignment) { maxAlignment = alignment; bestPhase = phase; } } const scaledInterval = beatInterval * scale; const shiftedPhase = bestPhase + shift; const beatmapTimes = []; for (let time = shiftedPhase; time < maxTime; time += scaledInterval) { if (time >= 0) { beatmapTimes.push(time); } } self.postMessage({ type: 'status', payload: \`Tempo found: \${bpm.toFixed(2)} BPM.\` }); return { beatmap: beatmapTimes.map(t => Math.floor(t * sampleRate)), bpm: bpm }; }
+
+// ================================================================
+// INLINED MODULE: beat-manipulator.js (NEW ROBUST VERSION)
+// ================================================================
+
+function shuffleArray(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array;
+}
+
+function evaluateArithmetic(expr, context) {
+    try {
+        const sanitizedExpr = expr.replace(/i/g, context.i);
+        // Safely evaluate simple arithmetic (addition/subtraction)
+        const parts = sanitizedExpr.split(/([+-])/).map(p => p.trim());
+        let result = parseFloat(parts[0]);
+        for (let i = 1; i < parts.length; i += 2) {
+            const operator = parts[i];
+            const operand = parseFloat(parts[i + 1]);
+            if (operator === '+') result += operand;
+            if (operator === '-') result -= operand;
+        }
+        return result;
+    } catch (e) {
+        return NaN;
+    }
+}
+
+function parseBeatSpec(spec, context, localBeatmap, shuffled_indices) {
+    let effects = [];
+    const effectRegex = /([vrs])([\\d\\.]+)?/g;
+    for (const match of spec.matchAll(effectRegex)) {
+        effects.push({ type: match[1], value: parseFloat(match[2]) || null });
+    }
+    spec = spec.replace(effectRegex, '');
+
+    let start_sample, end_sample;
+
+    if (spec.includes('#')) {
+        const [base_str, count_str] = spec.split('#');
+        const base = Math.floor(evaluateArithmetic(base_str, context));
+        if (!shuffled_indices[base] || shuffled_indices[base].length === 0) {
+            const count = parseInt(count_str, 10) || 1;
+            const indices = Array.from({ length: count }, (_, k) => base + k - 1);
+            shuffled_indices[base] = shuffleArray(indices);
+        }
+        const shuffled_beat_idx = shuffled_indices[base].pop();
+        if (shuffled_beat_idx >= 0 && shuffled_beat_idx < localBeatmap.length -1) {
+             start_sample = localBeatmap[shuffled_beat_idx];
+             end_sample = localBeatmap[shuffled_beat_idx + 1] || context.total_samples;
+        }
+    } else if (spec.includes(':')) {
+        const [start_beat_str, end_beat_str] = spec.split(':');
+        const avg_beat_dur = (localBeatmap[1] - localBeatmap[0]);
+        const start_beat = evaluateArithmetic(start_beat_str, context);
+        const end_beat = evaluateArithmetic(end_beat_str, context);
+        const start_beat_floor = Math.floor(start_beat);
+        const end_beat_floor = Math.floor(end_beat);
+
+        if (start_beat_floor >= 0 && start_beat_floor < localBeatmap.length && end_beat_floor >=0 && end_beat_floor < localBeatmap.length) {
+            start_sample = localBeatmap[start_beat_floor] + Math.round((start_beat % 1) * avg_beat_dur);
+            end_sample = localBeatmap[end_beat_floor] + Math.round((end_beat % 1) * avg_beat_dur);
+        }
+    } else if (spec === '@' || spec === 'random') {
+        const rand_idx = Math.floor(Math.random() * (localBeatmap.length - 1));
+        start_sample = localBeatmap[rand_idx];
+        end_sample = localBeatmap[rand_idx + 1] || context.total_samples;
+    } else {
+        const slice_match = spec.match(/([><])([\\d\\/.]+)/);
+        let beat_num_str = spec;
+        if (slice_match) {
+            beat_num_str = spec.replace(slice_match[0], '');
+        }
+        const beat_num = Math.floor(evaluateArithmetic(beat_num_str, context)) - 1;
+
+        if (beat_num >= 0 && beat_num < localBeatmap.length - 1) {
+            start_sample = localBeatmap[beat_num];
+            end_sample = localBeatmap[beat_num + 1] || context.total_samples;
+            if (slice_match) {
+                const [_, type, val_str] = slice_match;
+                const val = eval(val_str); // Use eval for fractions like '1/3'
+                const duration = end_sample - start_sample;
+                if (type === '>') start_sample += Math.floor(duration * val);
+                if (type === '<') end_sample = start_sample + Math.floor(duration * val);
+            }
+        }
+    }
+
+    if (start_sample >= end_sample) { // Ensure valid slice
+        start_sample = end_sample = undefined;
+    }
+
+    return { start_sample, end_sample, effects };
+}
+
+async function manipulate(audioData, beatmap, patternString) {
+    self.postMessage({ type: 'status', payload: 'Parsing manipulation pattern...' });
+    const { leftChannel, rightChannel, sampleRate } = audioData;
+    let localBeatmap = [...beatmap];
+
+    if (patternString === 'reverse') {
+        localBeatmap.reverse();
+        patternString = 'i';
+    } else if (patternString === 'shuffle') {
+        shuffleArray(localBeatmap);
+        patternString = 'i';
+    } else if (patternString === 'random') {
+        patternString = Array(localBeatmap.length).fill('@').join(',');
+    }
+
+    const raw_pattern = patternString.replace(/\\|/g, ',').split(/([,;])/);
+    const pattern = [];
+    const operators = [];
+    for(let i=0; i < raw_pattern.length; i+=2) {
+        if(raw_pattern[i].trim()) {
+            pattern.push(raw_pattern[i].trim());
+            operators.push(raw_pattern[i+1] || ',');
+        }
+    }
+
+    if (pattern.length === 0) return audioData;
+
+    const output_left = [leftChannel.slice(0, localBeatmap[0] || 0)];
+    const output_right = [rightChannel.slice(0, localBeatmap[0] || 0)];
+
+    const shuffled_indices = {};
+    const pattern_len = pattern.length;
+    let sequence_len = pattern.find(p => p.includes('!')) ? parseInt(pattern.find(p => p.includes('!')).replace('!', '')) : pattern_len;
+
+    // Determine if the pattern is a "mapping" pattern (driven by `i`) or a "generative" one (driven by its own length)
+    const isMappingPattern = pattern.some(p => p.includes('i') || p.includes('#') || p.includes('!') || p.includes('@'));
+    const loop_limit = isMappingPattern ? (localBeatmap.length - 1) : pattern.length;
+
+    for (let beat_idx = 0; beat_idx < loop_limit; beat_idx++) {
+        const pattern_idx = beat_idx % pattern_len;
+        const op = pattern[pattern_idx];
+        const operator = operators[pattern_idx];
+
+        let should_process = true;
+        let current_op = op;
+        if (op.includes('?')) {
+            if (Math.random() < 0.5) should_process = false;
+            current_op = op.replace('?', '');
+        }
+
+        let chunk = null;
+        if (should_process) {
+            // For generative patterns, `i` should be based on the pattern index, not the overall beat index.
+            const context_i = isMappingPattern ? (beat_idx % sequence_len) + 1 : pattern_idx + 1;
+            const context = { i: context_i, total_samples: leftChannel.length };
+            const { start_sample, end_sample, effects } = parseBeatSpec(current_op, context, localBeatmap, shuffled_indices);
+
+            if (start_sample !== undefined && end_sample !== undefined) {
+                let chunkL = leftChannel.slice(start_sample, end_sample);
+                let chunkR = rightChannel.slice(start_sample, end_sample);
+
+                for (const effect of effects) {
+                    if (effect.type === 'r') { chunkL.reverse(); chunkR.reverse(); }
+                    if (effect.type === 'v') {
+                        const vol = effect.value !== null ? effect.value : 0.5;
+                        for (let k = 0; k < chunkL.length; k++) { chunkL[k] *= vol; chunkR[k] *= vol; }
+                    }
+                    if (effect.type === 's') {
+                        const speed = effect.value !== null ? Math.max(0.1, effect.value) : 2.0;
+                        const newLen = Math.floor(chunkL.length / speed);
+                        const resL = new Float32Array(newLen);
+                        const resR = new Float32Array(newLen);
+                        for (let k = 0; k < newLen; k++) {
+                            const oldIndex = Math.floor(k * speed);
+                            if (oldIndex < chunkL.length) {
+                                resL[k] = chunkL[oldIndex];
+                                resR[k] = chunkR[oldIndex];
+                            }
+                        }
+                        chunkL = resL; chunkR = resR;
+                    }
+                }
+                chunk = { left: chunkL, right: chunkR };
+            }
+        }
+
+        if (chunk) {
+            if (operator === ';') {
+                const prevL = output_left.pop() || new Float32Array(0);
+                const prevR = output_right.pop() || new Float32Array(0);
+                const maxLen = Math.max(prevL.length, chunk.left.length);
+                const newL = new Float32Array(maxLen).fill(0);
+                const newR = new Float32Array(maxLen).fill(0);
+                newL.set(prevL, 0);
+                newR.set(prevR, 0);
+                for (let j = 0; j < chunk.left.length; j++) { newL[j] += chunk.left[j]; newR[j] += chunk.right[j]; }
+                output_left.push(newL);
+                output_right.push(newR);
+            } else {
+                output_left.push(chunk.left);
+                output_right.push(chunk.right);
+            }
+        }
+    }
+
+    // Only add the tail for mapping patterns, as generative patterns define the full structure.
+    if (isMappingPattern) {
+        const last_beat_sample = localBeatmap[localBeatmap.length - 1] || 0;
+        if (last_beat_sample < leftChannel.length) {
+            output_left.push(leftChannel.slice(last_beat_sample));
+            output_right.push(rightChannel.slice(last_beat_sample));
+        }
+    }
+
+    self.postMessage({ type: 'status', payload: 'Stitching final audio...' });
+    const totalLength = output_left.reduce((sum, arr) => sum + arr.length, 0);
+    const stitchedLeft = new Float32Array(totalLength);
+    const stitchedRight = new Float32Array(totalLength);
+    let offset = 0;
+    for (let i = 0; i < output_left.length; i++) {
+        stitchedLeft.set(output_left[i], offset);
+        stitchedRight.set(output_right[i], offset);
+        offset += output_left[i].length;
+    }
+    for (let i = 0; i < totalLength; i++) {
+        stitchedLeft[i] = Math.max(-1, Math.min(1, stitchedLeft[i]));
+        stitchedRight[i] = Math.max(-1, Math.min(1, stitchedRight[i]));
+    }
+
+    if (patternString === 'test') {
+        self.postMessage({ type: 'status', payload: 'Adding test tone...' });
+        for (const beat_sample of localBeatmap) {
+            if (beat_sample + 1000 < stitchedLeft.length) {
+                for (let i = 0; i < 1000; i++) {
+                    const t = i / sampleRate;
+                    const tone = Math.sin(2 * Math.PI * 880 * t) * Math.exp(-t * 5) * 0.5;
+                    const sample_idx = beat_sample + i;
+                    stitchedLeft[sample_idx] = Math.max(-1, Math.min(1, stitchedLeft[sample_idx] + tone));
+                    stitchedRight[sample_idx] = Math.max(-1, Math.min(1, stitchedRight[sample_idx] + tone));
+                }
+            }
+        }
+    }
+
+    return { leftChannel: stitchedLeft, rightChannel: stitchedRight };
+}
+
+// ================================================================
+// INLINED MODULE: beat-processor.js (Main Worker Logic)
+// ================================================================
+
+let webgpuDevice = null;
+async function detectBeats(leftChannel, rightChannel, sampleRate, scale = 1.0, shift = 0.0) {
+    self.postMessage({ type: 'status', payload: 'Initializing WebGPU for beat detection...' });
+    if (!webgpuDevice) { const { device } = await initializeWebGPU(); webgpuDevice = device; }
+    const [noveltyCurve, tempoBPM] = await Promise.all([
+        calculateOnsetNoveltyCurve(webgpuDevice, leftChannel, rightChannel, sampleRate),
+        calculateTempoByAutocorrelation(webgpuDevice, leftChannel, rightChannel, sampleRate)
+    ]);
+    const hopSize = 512;
+    const onsets = findPeaks(noveltyCurve, hopSize, sampleRate);
+
+    if (tempoBPM === 0 || onsets.length < 10) {
+        self.postMessage({ type: 'status', payload: 'Autocorrelation failed. Relying on onset correlation only.' });
+        const { beatmap, bpm } = correlateOnsets(onsets, sampleRate, scale, shift);
+        self.postMessage({ type: 'status', payload: \`Final BPM: \${bpm.toFixed(2)}\` });
+        return beatmap;
+    }
+
+    self.postMessage({ type: 'status', payload: 'Refining onsets with global tempo...' });
+    const beatIntervalSec = 60.0 / tempoBPM;
+    const beatmap = [];
+    let bestPhase = 0; let maxAlignment = -1; const phaseSteps = 20;
+    for (let i = 0; i < phaseSteps; i++) {
+        const phase = (i / phaseSteps) * beatIntervalSec; let alignment = 0;
+        for (const onset of onsets) {
+            const distance = Math.abs(onset - (Math.round((onset - phase) / beatIntervalSec) * beatIntervalSec + phase));
+            if (distance < 0.025) { alignment++; }
+        }
+        if (alignment > maxAlignment) { maxAlignment = alignment; bestPhase = phase; }
+    }
+    const duration = leftChannel.length / sampleRate;
+
+    const scaledIntervalSec = beatIntervalSec * scale;
+    const shiftedPhaseSec = bestPhase + shift;
+
+    for (let time = shiftedPhaseSec; time < duration; time += scaledIntervalSec) {
+        if (time >= 0) {
+            beatmap.push(Math.floor(time * sampleRate));
+        }
+    }
+
+    self.postMessage({ type: 'status', payload: \`Final BPM: \${tempoBPM.toFixed(2)}. Found \${beatmap.length} beats.\` });
+    return beatmap;
+}
+
+self.onmessage = async (e) => {
+    const { type, payload } = e.data;
+    if (type === 'start') {
+        try {
+            self.postMessage({ type: 'status', payload: 'Worker received decoded audio. Starting processing.' });
+            const { leftChannel, rightChannel, sampleRate, pattern, scale, shift } = payload;
+
+            const beatmap = await detectBeats(leftChannel, rightChannel, sampleRate, scale, shift);
+
+            const { leftChannel: processedLeft, rightChannel: processedRight } = await manipulate({ leftChannel, rightChannel, sampleRate }, beatmap, pattern);
+            self.postMessage({ type: 'result', payload: { leftChannel: processedLeft, rightChannel: processedRight, sampleRate: sampleRate } }, [processedLeft.buffer, processedRight.buffer]);
+        } catch (error) { console.error('Error in worker:', error); self.postMessage({ type: 'error', payload: error.message + ' at ' + error.stack }); }
+    }
+};
+self.postMessage({ type: 'status', payload: 'Beat processor worker loaded and ready.' });
+`;
+
+        function audioBufferToWav(buffer) { const numChannels = buffer.numberOfChannels; const sampleRate = buffer.sampleRate; const format = 1; const bitDepth = 16; let result; if (numChannels === 2) { result = interleave(buffer.getChannelData(0), buffer.getChannelData(1)); } else { result = buffer.getChannelData(0); } return encodeWAV(result, format, sampleRate, numChannels, bitDepth); }
+        function encodeWAV(samples, format, sampleRate, numChannels, bitDepth) { const bytesPerSample = bitDepth / 8; const blockAlign = numChannels * bytesPerSample; const buffer = new ArrayBuffer(44 + samples.length * bytesPerSample); const view = new DataView(buffer); writeString(view, 0, 'RIFF'); view.setUint32(4, 36 + samples.length * bytesPerSample, true); writeString(view, 8, 'WAVE'); writeString(view, 12, 'fmt '); view.setUint32(16, 16, true); view.setUint16(20, format, true); view.setUint16(22, numChannels, true); view.setUint32(24, sampleRate, true); view.setUint32(28, sampleRate * blockAlign, true); view.setUint16(32, blockAlign, true); view.setUint16(34, bitDepth, true); writeString(view, 36, 'data'); view.setUint32(40, samples.length * bytesPerSample, true); floatTo16BitPCM(view, 44, samples); return new Blob([view], { type: 'audio/wav' }); }
+        function floatTo16BitPCM(output, offset, input) { for (let i = 0; i < input.length; i++, offset += 2) { const s = Math.max(-1, Math.min(1, input[i])); output.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true); } }
+        function writeString(view, offset, string) { for (let i = 0; i < string.length; i++) { view.setUint8(offset + i, string.charCodeAt(i)); } }
+        function interleave(inputL, inputR) { const length = inputL.length + inputR.length; const result = new Float32Array(length); let index = 0, inputIndex = 0; while (index < length) { result[index++] = inputL[inputIndex]; result[index++] = inputR[inputIndex]; inputIndex++; } return result; }
+
+        // ================================================================
+        // UI & MULTITRACK LOGIC
+        // ================================================================
+
+        let multitrack;
+        let tracks = [];
+        let worker;
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+        const presetsYaml = `
+# ________________ BASIC ________________
+"2x speed":
+  pattern: 1>0.5
+"3x speed":
+  pattern: 1>1/3
+"4x speed":
+  pattern: 1>0.25
+"6x speed":
+  pattern: 1>1/6
+"8x speed":
+  pattern: 1>0.125
+"1.33x faster":
+  pattern: 1>0.75
+"1.5x faster":
+  pattern: 1>2/3
+"1.5x slower":
+  pattern: 1>0.5, 1<0.5r, 1<0.5
+"1.33x slower":
+  pattern: 1>2/3, 1<1/3r, 1<1/3
+reverse:
+  pattern: reverse
+"reverse 8 beats":
+  pattern: 8, 7, 6, 5, 4, 3, 2, 1
+shuffle:
+  pattern: shuffle
+"shuffle 3 beats":
+  pattern: 1#1, 2#1, 3#1
+"shuffle 4 beats":
+  pattern: 1#1, 2#1, 3#1, 4#1
+"shuffle 8 beats":
+  pattern: 1#1, 2#1, 3#1, 4#1, 5#1, 6#1, 7#1, 8#1
+"shuffle alternate":
+  pattern: 1#1, 2#2, 3#1, 4#2, 5#1, 6#2, 7#1, 8#2
+"shuffle mix":
+  pattern: i#1, i#2, i#3, i#4, i#1, i#2, i#3, i#4, i#1, i#2, i#3, i#4, i#1, i#2, i#3, i#4
+"3 bars mix":
+  pattern: i, i+4?, i+8?, 3!
+"4 bars mix":
+  pattern: i, i+4?, i+8?, i+12?, 4!
+"6 bars mix":
+  pattern: i, i+4?, i+8?, i+12?, i+16?, i+20?, 6!
+"8 bars mix":
+  pattern: i, i+4?, i+8?, i+12?, i+16?, i+20?, i+24?, i+28?, 8!
+"2 in 1":
+  pattern: 1; 2
+"3 in 1":
+  pattern: 1; 2; 3
+"4 in 1":
+  pattern: 1; 2; 3; 4
+"5 in 1":
+  pattern: 1;2;3;4;5
+"2 in 1 reverse":
+  pattern: 1;2r?
+"reverse mix":
+  pattern: 1;1r
+random:
+  pattern: random
+"kicks only":
+  pattern: 1>0.5
+"kicks only double-time":
+  pattern: 1>0.25
+"snares only":
+  pattern: 1<0.5
+"no main drums":
+  pattern: 1<0.5
+# ________________ STRUCTURES ________________
+"half-time":
+  pattern: 1,2,4,5, | 3,6,8,7, | 9,11,12,13, | 15,13,14,16
+"quarter-time 1":
+  pattern: 1,2,4,5,|6,8,9,10,|11,12,13,14,|16,14,15,16
+"quarter-time 2":
+  pattern: 1,2,4,5, | 6,8,10,12, | 11,10,12,13, | 9,13,14,16
+"dotted snares 1":
+  pattern: 1, 2>0.5, 3, 4>0.5, 5, 6>0.5, 3, 4>0.5, 7, 8
+"dotted snares 2":
+  pattern: 1, 2, 3 , 4, | 5, 7 , 6, 8, | 11 , 10, 9, 11 , | 13, 14, 15 , 16
+"dotted snares 2 long":
+  pattern: 1, 2, 3 , 4, | 5, 7 , 6, 8, | 11 , 10, 9, 11 , | 13, 14, 15 , 16, | 17, 19 , 18, 20, | 23 , 22, 21, 23 , | 25, 26, 27 , 28, | 29, 31 , 30, 32
+"dotted snares 2 longer":
+  pattern: 1, 2, 3 , 4, | 5, 7 , 6, 8, | 11 , 10, 9, 11 , | 13, 14, 15 , 16, | 17, 19 , 18, 20, | 23 , 22, 21, 23 , | 25, 26, 27 , 28, | 29, 31 , 30, 32
+"dotted snares fast 1":
+  pattern: 1, 2, 3, 5>0.5, 7, 5>0.5, 11, 5>0.5, 7, 5>0.5, 11, 9>0.5, 7, 9>0.5, 11, 9>0.5, 7, 9>0.5, 11, 16
+"dotted snares fast 2":
+  pattern: 1, 2>0.75,   2>0.25, 1.25:1.75;3, 4>0.75, 4>0.75, 4>0.75, 4>0.25, 3.25:3.75;5, 6>0.75, 6>0.75;7, 8>0.75, 6>0.25;8<0.25
+"dotted kicks":
+  pattern: 1>0.75, 1>0.25, 2>0.5, 1>0.75, 1>0.75, 4>0.75, 1>0.75, 1>0.5, 6>0.25, 1>0.75, 1>0.75, 1>0.25, 8>0.5, 1>0.5
+"dotted kicks 2":
+  pattern: 0:0.75, 0.75:1.5;0:0.75, 1.5:2.25;0:0.75, 2.25:3;0:0.75, 3:3.75;0:0.75, 3.75:4.5;0:0.75, 4.5:5.25;0:0.75, 5.25:6;0:0.75, 6:6.75;0:0.75, 6.75:7.5;0:0.75, 7.5:8;0:0.5
+"tripple dotted":
+  pattern: 1>0.375, 1>0.375, 1>0.25
+"tripple dotted snares":
+  pattern: 1>0.375, 1>0.375, 1>0.25
+"dotted structure":
+  pattern: 1>0.75, 2>0.75, 4>0.5
+"dotted chaos 1":
+  pattern: 1>1/3
+"dotted chaos 2":
+  pattern: 1>1/6
+"dotted pattern 1":
+  pattern: 1, 2>0.75,   2>0.25, 1.25:1.75;3, 2>0.75, 2>0.75, 2>0.75, 2>0.25, 1.25:1.75;5, 2>0.75, 2>0.75;7, 2>0.75, 2>0.25;8<0.25
+"dotted pattern 2":
+  pattern: 1, 2>0.75,   2>0.25, 1.25:1.75;3, 4>0.75, 4>0.75, 4>0.75, 4>0.25, 3.25:3.75;5, 6>0.75, 6>0.75;7, 8>0.75, 6>0.25;8<0.25
+# ________________ TIME SIGNATURES ________________
+"4-3":
+  pattern: 1>2/3, 2>2/3, 2>2/3
+"3-4":
+  pattern: 1>0.75
+"4-7 1":
+  pattern: 1, 2, 3, 4>0.5
+"4-7 2":
+  pattern: 1, 2, 3, 4>0.25, 3.75:4, 5,6>0.5, 7, 8
+"4-13":
+  pattern: 1, 2, 3, 4>0.25
+# ________________ GENRES ________________
+moombahton:
+  pattern: 1>0.75, 2>0.25, 1>0.5, 4>0.5
+"four-on-the-floor 1":
+  pattern: 1, 2, 1, 4, 1, 6, 1, 8, 1, 10, 1, 12, 1, 14, 1, 16
+"four-on-the-floor 1 double-time":
+  pattern: 1, 2, 1, 4, 1, 6, 1, 8, 1, 10, 1, 12, 1, 14, 1, 16, 1, 18, 1, 20, 1, 22, 1, 24, 1, 26, 1, 28, 1, 30, 1, 32
+"house 1":
+  pattern: 1, 2, 3, 4, 1, 6, 7, 8, 1, 10, 11, 12, 1, 14, 15, 16
+"house 1 double-time":
+  pattern: 1, 2, 5, 4, 1, 6, 5, 8, 1, 10, 13, 12, 1, 14, 13, 16, 1, 18, 21, 20, 1, 22, 21, 24, 1, 26, 29, 28, 1, 30, 29, 32
+"house 2":
+  pattern: 1>0.5
+"house 2 double-time":
+  pattern: 1>0.25
+drill:
+  pattern: 1>0.75, 2>0.75, 2>0.5,  3>0.75, 4>0.75, 4>0.5,  5>0.75, 6>0.75, 6>0.5,  6, 7>0.75, 8<0.25
+"jungle 1":
+  pattern: 1, 2, 3, 4, 5, 7, 6, 8, | 11, 10, 11, 12, 13, 15, 14, 16, | 19, 18, 19, 20, 21, 23, 22, 24, | 27, 26, 27, 28, 29, 31, 30, 32
+"jungle 2":
+  pattern: 1, 2, 1, 2, | 3>0.5, 3>0.5, 1>0.5, 7>0.5, | 7>0.5, 7>0.5, 5>0.5, 11>0.5, | 11>0.5, 7>0.5, 0>0.5, 11>0.5, |  14>0.5, 11>0.5, 13>0.5, 15>0.5, 16!
+drumfunk:
+  pattern: 1, 2, 3 , 4, | 3 , 4, 9, 7 , | 8, 10, 11 , 0>0.5, 11>0.5 , | 0>0.5, 15>0.5, 14, 15 , 16
+jazzy:
+  pattern: 1, 2>0.5, 3, 4>0.5, 5, 6>0.5, 3, 4>0.5, 7, 8
+darkstep:
+  pattern: 1,1,3,1, | 1,7,1,1, | 11,9,9,11, | 9,9,15,16
+"darkstep long":
+  pattern: 1,1,3,1, | 1,7,1,1, | 11,9,9,11, | 9,9,15,9, | 17,19,17,17, | 19,17,17,23, | 25,25,27,25, | 25,31,25,32
+"darkstep fast":
+  pattern: 1,1,5,1, | 1,13,1,1, | 21,17,17,21, | 17,17,29,32
+# ________________ EFFECTS ________________
+"staccato reverese":
+  pattern: 1>0.5, 0.5:0.8r, 0.5:0.8, 0.5:0.8r, 0.5:0.8, 0.5:0.8r, 3>0.6, 0.5:0.8r, 0.5:0.8, 0.5:0.8r, 0.5:0.8, 0.5:0.7r, 5>0.5, 0.5:0.8r, 0.5:0.8, 0.5:0.8r, 0.5:0.8, 0.5:0.8r, 7>0.6, 0.5:0.8r, 0.5:0.8, 0.5:0.8r, 7.6:7.9, 7.0>0
+"staccato reverese syncopated 1":
+  pattern: 1, 2>0.5, 2.5:4r, 2.5:4, 2.5:4r, 2.5:4, 2.5:3r, | 9, 10.5:12, 10.5:12r, 10.5:12, 10.5:12r, 10.5:11.5, | 16:16.5, 18.5:20r, 18.5:20, 18.5:20r, 18.5:20, 18.5:20r, | 25, 25:25.5, 26.5:28r, 26.5:28, 26.5:28r, 26.5:28, 31.5:32
+"staccato reverese syncopated 2":
+  pattern: 1, 2>0.5, 2.5:4r, 2.5:4, 2.5:4r, 2.5:4, 2.5:3r, | 9, 2.5:4, 2.5:4r, 2.5:4, 2.5:4r, 2.5:3.5, | 16:16.5, 2.5:4r, 2.5:4, 2.5:4r, 2.5:4, 2.5:4r, | 25, 25:25.5, 2.5:4r, 2.5:4, 2.5:4r, 2.5:4, 31.5:32
+"staccato reverese syncopated 3":
+  pattern: 1, 2>0.5, 2.5:4s2,2.5:4s2r, 2.5:4, 2.5:4r,  2.5:4s2,2.5:4s2r, 2.5:3, | 9, 2.5:4r, 2.5:4s2,2.5:4s2r, 2.5:4, 2.5:4r,  2.5:4s2,2.5:4s2r, | 16:17.5, 2.5:4r, 2.5:4s2,2.5:4s2r, 2.5:4, 2.5:4r, | 24:25.5, 2.5:4, 2.5:4r,  2.5:4s2,2.5:4s2r, 2.5:4, 31.5:32r
+# ________________ SONGS ________________
+BS6:
+  pattern: 1, 1, | 3>1.5, 3>1.5, 3>1.5, 3>1.5, | 9, 9>0.5 | 14.5>1.5, 14.5>1.5, 14.5>1.5, 14.5>1.5, 14.5>0.5, 16!
+Poison:
+  pattern: 0:1/3, 0:1/3, 1:4/3, 1:4/3, 2:7/3, 2:7/3, 3:10/3, 3:10/3, 1/3:2/3, 4/3:5/3, 10/3:4
+"Szamar Madar":
+  pattern: 1, 2, 3, 4, 4, 1, 2, 3, 1, 1v0, 1v0, 1, 7, 8,|9, 10, 11, 12, 13, 14, 15, 16, 15, 10, 10, 10, 11, 16,|17, 18, 19, 20, 20, 17, 18, 19, 20, 20, 17, 17v0, 23, 24,|25, 25:25.5, 24:24.5, 27, 25, 28, 25, 31, 24:24.5, 27.5:28, 24:24.5, 27.5:28, 25, 25, 25, 31, 32
+Conceivability:
+  pattern: 1, 2, 3, 4, 9, 10, 11, 12, 13, 14, 16<0.5, 16>0.5, | 17, 18, 19>0.5, 20, 21, 21<0.5, 22, 23, 23<0.5, 24, 30, 31, 32>0.5
+"Rhythm Era":
+  pattern: 1, 2>0.75, 2>0.75, 2>0.75, 2>0.25, | 5, 6>0.75, 8>0.75, 6>0.75, 8>0.25, | 9, 10>0.75, 10>0.75, 10>0.75, 10>0.25, | 13, 14>0.75v0.6; 16>0.75v0.6, 14>0.75, 14>0.5, 14>0.5v0.6; 16>0.5v0.6
+# ________________ OTHER ________________
+test:
+  pattern: test
+`;
+
+        function populatePresets() {
+            const presetSelect = document.getElementById('preset_name');
+            const patternInput = document.getElementById('pattern');
+            presetSelect.innerHTML = '';
+
+            try {
+                const parsedPresets = jsyaml.load(presetsYaml);
+                let firstPattern = '';
+                let currentOptgroup = null;
+
+                for (const [name, presetData] of Object.entries(parsedPresets)) {
+                    if (name.startsWith('# ___')) {
+                         currentOptgroup = document.createElement('optgroup');
+                         currentOptgroup.label = name.replace(/#\s*_{2,}\s*|\s*_{2,}/g, '').trim();
+                         presetSelect.appendChild(currentOptgroup);
+                         continue;
+                    }
+
+                    if (!presetData || typeof presetData.pattern !== 'string') continue;
+
+                    if (!firstPattern) {
+                        firstPattern = presetData.pattern;
+                    }
+
+                    const option = document.createElement('option');
+                    option.value = presetData.pattern;
+                    option.textContent = name;
+
+                    if (presetData.description) {
+                         option.title = presetData.description;
+                    }
+
+                    if (currentOptgroup) {
+                        currentOptgroup.appendChild(option);
+                    } else {
+                        presetSelect.appendChild(option);
+                    }
+                }
+
+                if (firstPattern) {
+                    patternInput.value = firstPattern;
+                    presetSelect.value = firstPattern;
+                }
+
+            } catch (e) {
+                console.error("Error parsing presets YAML:", e);
+                patternInput.value = 'shuffle';
+                const option = document.createElement('option');
+                option.value = 'shuffle';
+                option.textContent = 'Error Loading - Default Shuffle';
+                presetSelect.appendChild(option);
+            }
+        }
+
+        document.getElementById('preset_name').addEventListener('change', (e) => {
+            document.getElementById('pattern').value = e.target.value;
+        });
+
+        document.getElementById('audioForm').onsubmit = async function (e) {
+            e.preventDefault();
+
+            const file = document.getElementById('audiofile').files[0];
+            const pattern = document.getElementById('pattern').value;
+            const scale = parseFloat(document.getElementById('scale').value) || 1.0;
+            const shift = parseFloat(document.getElementById('shift').value) || 0.0;
+            const loading = document.getElementById('loading');
+            const statusStep = loading.querySelector('.processing-step');
+            const errorMessage = document.getElementById('error-message');
+            const submitBtn = document.getElementById('submitBtn');
+            const audioPlayer = document.getElementById('audio-player');
+            const downloadBtn = document.getElementById('downloadBtn');
+
+            if (!file) {
+                errorMessage.textContent = 'Please select an audio file first.';
+                errorMessage.style.display = 'block';
+                return;
+            }
+            if (!pattern.trim()) {
+                errorMessage.textContent = 'Please provide a manipulation pattern.';
+                errorMessage.style.display = 'block';
+                return;
+            }
+
+            if (worker) worker.terminate();
+            loading.style.display = 'block';
+            statusStep.textContent = 'Preparing...';
+            errorMessage.style.display = 'none';
+            audioPlayer.style.display = 'none';
+            downloadBtn.style.display = 'none';
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+
+            const blob = new Blob([workerCode], { type: 'application/javascript' });
+            const workerURL = URL.createObjectURL(blob);
+            worker = new Worker(workerURL);
+
+            worker.onmessage = (e) => {
+                const { type, payload } = e.data;
+                if (type === 'status') {
+                    statusStep.textContent = payload;
+                } else if (type === 'error') {
+                    errorMessage.textContent = `Error: ${payload}`;
+                    errorMessage.style.display = 'block';
+                    loading.style.display = 'none';
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="fas fa-play-circle"></i> Process Audio';
+                } else if (type === 'result') {
+                    statusStep.textContent = 'Processing complete! Generating audio file...';
+
+                    const { leftChannel, rightChannel, sampleRate } = payload;
+                    const newAudioBuffer = audioContext.createBuffer(2, leftChannel.length, sampleRate);
+                    newAudioBuffer.copyToChannel(leftChannel, 0);
+                    newAudioBuffer.copyToChannel(rightChannel, 1);
+
+                    const wavBlob = audioBufferToWav(newAudioBuffer);
+                    const audioUrl = URL.createObjectURL(wavBlob);
+
+                    audioPlayer.src = audioUrl;
+                    audioPlayer.style.display = 'block';
+
+                    downloadBtn.href = audioUrl;
+                    downloadBtn.download = `processed_${file.name}.wav`;
+                    downloadBtn.style.display = 'inline-block';
+
+                    const newTrack = [{
+                        id: `track${tracks.length + 1}`,
+                        url: audioUrl,
+                        draggable: true,
+                        envelope: false,
+                        volume: 1,
+                        options: {
+                            waveColor: getRandomColor(),
+                            progressColor: 'hsl(161, 87%, 20%)',
+                            normalize: true,
+                            audioRate: 1
+                        }
+                    }];
+                    initMultitrack(newTrack);
+
+                    loading.style.display = 'none';
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="fas fa-play-circle"></i> Process Audio';
+                }
+            };
+
+            worker.onerror = (err) => {
+                errorMessage.textContent = `Worker error: ${err.message}`;
+                errorMessage.style.display = 'block';
+                loading.style.display = 'none';
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fas fa-play-circle"></i> Process Audio';
+            };
+
+            const reader = new FileReader();
+            reader.onload = async (event) => {
+                try {
+                    statusStep.textContent = 'Decoding audio file...';
+                    const audioData = event.target.result;
+                    const decodedAudio = await audioContext.decodeAudioData(audioData);
+
+                    const leftChannel = decodedAudio.getChannelData(0);
+                    const rightChannel = decodedAudio.numberOfChannels > 1
+                        ? decodedAudio.getChannelData(1)
+                        : leftChannel.slice();
+
+                    statusStep.textContent = 'Audio decoded. Sending to worker for processing.';
+                    worker.postMessage({
+                        type: 'start',
+                        payload: {
+                            leftChannel,
+                            rightChannel,
+                            sampleRate: decodedAudio.sampleRate,
+                            pattern,
+                            scale,
+                            shift
+                        }
+                    }, [leftChannel.buffer, rightChannel.buffer]);
+
+                } catch (error) {
+                    errorMessage.textContent = `Error decoding audio: ${error.message}`;
+                    errorMessage.style.display = 'block';
+                    loading.style.display = 'none';
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="fas fa-play-circle"></i> Process Audio';
+                }
+            };
+            reader.onerror = () => {
+                errorMessage.textContent = 'Error reading file.';
+                errorMessage.style.display = 'block';
+                loading.style.display = 'none';
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fas fa-play-circle"></i> Process Audio';
+            };
+            reader.readAsArrayBuffer(file);
+        };
+
+        function getRandomColor() { const letters = '0123456789ABCDEF'; let color = '#'; for (let i = 0; i < 6; i++) { color += letters[Math.floor(Math.random() * 16)]; } return color; }
+        document.querySelector('#track-upload').addEventListener('change', function (e) { const files = e.target.files; const newTracks = Array.from(files).map((file, index) => ({ id: `track${tracks.length + index}`, url: URL.createObjectURL(file), draggable: true, envelope: false, volume: 1, options: { waveColor: getRandomColor(), progressColor: 'hsl(161, 87%, 20%)', normalize: true, audioRate: 1 } })); initMultitrack(newTracks); });
+        async function initMultitrack(newTracks) { if (!newTracks || newTracks.length === 0) return; if (!multitrack) { tracks = [...newTracks]; multitrack = Multitrack.create(tracks, { container: document.querySelector('#waveform') }); multitrack.once('canplay', () => { const playButton = document.querySelector('#play'); playButton.disabled = false; playButton.onclick = () => { multitrack.isPlaying() ? multitrack.pause() : multitrack.play(); playButton.innerHTML = multitrack.isPlaying() ? '<i class="fas fa-pause icon"></i>' : '<i class="fas fa-play icon"></i>'; } }); addTrackControls(tracks); } else { for (const track of newTracks) { await multitrack.addTrack(track); addTrackControls([track]); } } syncHeights(); }
+        function syncHeights() { setTimeout(() => { const waveformHeight = document.querySelector('#waveform').offsetHeight; if (waveformHeight > 0) { document.querySelector('#individualcntrls-container').style.height = `${waveformHeight}px`; } }, 100); }
+        function addTrackControls(tracksToAdd) { const controlsContainer = document.querySelector('#individualcntrls-container'); tracksToAdd.forEach((track, index) => { const trackControls = document.createElement('div'); trackControls.classList.add('individualcntrls'); trackControls.setAttribute('data-track-id', track.id); const muteButton = document.createElement('button'); muteButton.innerHTML = '<i class="fas fa-volume-up"></i>'; muteButton.onclick = () => toggleMute(track.id, muteButton); const soloButton = document.createElement('button'); soloButton.innerHTML = '<i class="fas fa-headphones"></i>'; soloButton.onclick = () => toggleSolo(track.id, soloButton); const volumeSlider = document.createElement('input'); volumeSlider.type = 'range'; volumeSlider.min = 0; volumeSlider.max = 1; volumeSlider.step = 0.01; volumeSlider.value = 1; volumeSlider.oninput = (e) => setVolume(track.id, e.target.value); const panSlider = document.createElement('input'); panSlider.type = 'range'; panSlider.min = -1; panSlider.max = 1; panSlider.step = 0.01; panSlider.value = 0; panSlider.oninput = (e) => setPan(track.id, e.target.value); const trackControlButtons = document.createElement('div'); trackControlButtons.classList.add('track-control-buttons'); trackControlButtons.appendChild(muteButton); trackControlButtons.appendChild(soloButton); const trackControlSliders = document.createElement('div'); trackControlSliders.classList.add('track-control-sliders'); trackControlSliders.appendChild(volumeSlider); trackControlSliders.appendChild(panSlider); trackControls.appendChild(trackControlButtons); trackControls.appendChild(trackControlSliders); controlsContainer.appendChild(trackControls); }); }
+        function toggleMute(trackId, button) { const track = multitrack.getTrackById(trackId); if(track) { track.setVolume(track.getVolume() > 0 ? 0 : 1); button.innerHTML = track.getVolume() > 0 ? '<i class="fas fa-volume-up"></i>' : '<i class="fas fa-volume-mute"></i>'; } }
+        function toggleSolo(trackId, button) { alert("Solo functionality requires more complex state management and is not fully implemented in this example."); }
+        function setVolume(trackId, volume) { const track = multitrack.getTrackById(trackId); if(track) track.setVolume(parseFloat(volume)); }
+        function setPan(trackId, pan) { const track = multitrack.getTrackById(trackId); if(track) track.setPan(parseFloat(pan)); }
+        document.querySelector('#zoomIn').onclick = () => multitrack && multitrack.zoom(multitrack.getZoom() + 5);
+        document.querySelector('#zoomOut').onclick = () => multitrack && multitrack.zoom(multitrack.getZoom() - 5);
+        document.querySelector('input[type="range"]').oninput = (e) => multitrack && multitrack.zoom(e.target.valueAsNumber);
+        document.querySelector('#forward').onclick = () => multitrack && multitrack.setTime(multitrack.getCurrentTime() + 10);
+        document.querySelector('#backward').onclick = () => multitrack && multitrack.setTime(multitrack.getCurrentTime() - 10);
+        const observer = new MutationObserver(syncHeights);
+        observer.observe(document.querySelector('#waveform'), { attributes: true, childList: true, subtree: true });
+        window.addEventListener('resize', syncHeights);
+
+        populatePresets();
+
+    </script>
+</body>
+</html>
